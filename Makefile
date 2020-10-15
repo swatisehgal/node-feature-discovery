@@ -26,7 +26,7 @@ JEKYLL_OPTS := -d '$(SITE_DESTDIR)' $(if $(SITE_BASEURL),-b '$(SITE_BASEURL)',)
 
 VERSION := $(shell git describe --tags --dirty --always)
 
-IMAGE_REGISTRY ?= k8s.gcr.io/nfd
+IMAGE_REGISTRY ?= quay.io/swsehgal
 IMAGE_TAG_NAME ?= $(VERSION)
 IMAGE_EXTRA_TAG_NAMES ?=
 
@@ -83,9 +83,10 @@ yamls: $(yaml_instances)
 	     $< > $@
 
 mock:
-	mockery --name=FeatureSource --dir=source --inpkg --note="Re-generate by running 'make mock'"
-	mockery --name=APIHelpers --dir=pkg/apihelper --inpkg --note="Re-generate by running 'make mock'"
-	mockery --name=LabelerClient --dir=pkg/labeler --inpkg --note="Re-generate by running 'make mock'"
+	mockery --name=FeatureSource --dir=source --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=APIHelpers --dir=pkg/apihelper --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=LabelerClient --dir=pkg/labeler --inpackage --note="Re-generate by running 'make mock'"
+	mockery --name=NodeTopologyClient --dir=pkg/topologyupdater --inpackage --note="Re-generate by running 'make mock'"
 
 gofmt:
 	@$(GO_FMT) -w -l $$(find . -name '*.go')

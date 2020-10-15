@@ -1,0 +1,264 @@
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package nfdtopologyupdater
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"time"
+
+	"github.com/davecgh/go-spew/spew"
+
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"sigs.k8s.io/node-feature-discovery/pkg/version"
+	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
+	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+)
+
+var (
+	stdoutLogger = log.New(os.Stdout, "", log.LstdFlags)
+	stderrLogger = log.New(os.Stderr, "", log.LstdFlags)
+	nodeName     = os.Getenv("NODE_NAME")
+)
+//
+// // Global config
+// type NFDConfig struct {
+// 	Sources sourcesConfig
+// }
+//
+// type sourcesConfig map[string]source.Config
+// Command line arguments
+type Args struct {
+	CaFile             string
+	CertFile           string
+	KeyFile            string
+	NoPublish          bool
+	Oneshot            bool
+	Server             string
+	ServerNameOverride string
+
+}
+
+type NfdTopologyUpdater interface {
+	Update(map[string]*v1alpha1.Zone) error
+}
+
+type nfdTopologyUpdater struct {
+	args           Args
+	clientConn     *grpc.ClientConn
+	client         pb.NodeTopologyClient
+	tmPolicy			 string
+	// config         NFDConfig
+}
+
+// Create new NewTopologyUpdater instance.
+func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
+	nfd := &nfdTopologyUpdater{
+		args:    args,
+		tmPolicy: policy,
+	}
+
+	// Check TLS related args
+	if args.CertFile != "" || args.KeyFile != "" || args.CaFile != "" {
+		if args.CertFile == "" {
+			return nfd, fmt.Errorf("--cert-file needs to be specified alongside --key-file and --ca-file")
+		}
+		if args.KeyFile == "" {
+			return nfd, fmt.Errorf("--key-file needs to be specified alongside --cert-file and --ca-file")
+		}
+		if args.CaFile == "" {
+			return nfd, fmt.Errorf("--ca-file needs to be specified alongside --cert-file and --key-file")
+		}
+	}
+
+
+	return nfd, nil
+}
+
+// Run nfdTopologyUpdater client. Returns if a fatal error is encountered, or, after
+// one request if OneShot is set to 'true' in the worker args.
+func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
+	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
+	stdoutLogger.Printf("NodeName: '%s'", nodeName)
+	stdoutLogger.Printf("UPdate received Zone: '%z'", spew.Sdump(zones))
+
+	// Connect to NFD master
+	err := w.connect()
+	if err != nil {
+		return fmt.Errorf("failed to connect: %v", err)
+	}
+	defer w.disconnect()
+
+	// for {
+		// Parse and apply configuration
+		// w.configure(w.args.ConfigFile, w.args.Options)
+
+		// Get the set of feature labels.
+		// labels := createFeatureLabels(w.sources, w.labelWhiteList)
+
+		// Update the node with the CRD.
+		if w.client != nil {
+			err := advertiseNodeTopology(w.client, zones, w.tmPolicy)
+			if err != nil {
+				return fmt.Errorf("failed to advertise CRD: %s", err.Error())
+			}
+		}
+
+
+
+	// 	if w.args.SleepInterval > 0 {
+	// 		time.Sleep(w.args.SleepInterval)
+	// 	} else {
+	// 		w.disconnect()
+	// 		// Sleep forever
+	// 		select {}
+	// 	}
+	// // }
+	return nil
+}
+
+// connect creates a client connection to the NFD master
+func (w *nfdTopologyUpdater) connect() error {
+	// Return a dummy connection in case of dry-run
+	if w.args.NoPublish {
+		return nil
+	}
+
+	// Check that if a connection already exists
+	if w.clientConn != nil {
+		return fmt.Errorf("client connection already exists")
+	}
+
+	// Dial and create a client
+	dialCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	dialOpts := []grpc.DialOption{grpc.WithBlock()}
+	if w.args.CaFile != "" || w.args.CertFile != "" || w.args.KeyFile != "" {
+		// Load client cert for client authentication
+		cert, err := tls.LoadX509KeyPair(w.args.CertFile, w.args.KeyFile)
+		if err != nil {
+			return fmt.Errorf("failed to load client certificate: %v", err)
+		}
+		// Load CA cert for server cert verification
+		caCert, err := ioutil.ReadFile(w.args.CaFile)
+		if err != nil {
+			return fmt.Errorf("failed to read root certificate file: %v", err)
+		}
+		caPool := x509.NewCertPool()
+		if ok := caPool.AppendCertsFromPEM(caCert); !ok {
+			return fmt.Errorf("failed to add certificate from '%s'", w.args.CaFile)
+		}
+		// Create TLS config
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caPool,
+			ServerName:   w.args.ServerNameOverride,
+		}
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	} else {
+		dialOpts = append(dialOpts, grpc.WithInsecure())
+	}
+	conn, err := grpc.DialContext(dialCtx, w.args.Server, dialOpts...)
+	if err != nil {
+		return err
+	}
+	w.clientConn = conn
+	w.client = pb.NewNodeTopologyClient(conn)
+
+	return nil
+}
+
+// disconnect closes the connection to NFD master
+func (w *nfdTopologyUpdater) disconnect() {
+	if w.clientConn != nil {
+		w.clientConn.Close()
+	}
+	w.clientConn = nil
+	w.client = nil
+}
+
+// advertiseNodeTopology advertises the topology CRD to a Kubernetes node
+// via the NFD server.
+func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.Zone , tmPolicy string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	stdoutLogger.Printf("advertiseNodeTopology: Zone received z: %v", spew.Sdump(z))
+	stdoutLogger.Printf("advertiseNodeTopology: Sending Topology Update request to nfd-master")
+	zones := make(map[string]*pb.Zone)
+	for zoneName, zone := range z{
+		stdoutLogger.Printf("advertiseNodeTopology: zoneName: '%s'", zoneName)
+
+		resInfo := make(map[string]*pb.ResourceInfo)
+		for resourceName, info := range zone.Resources{
+			resInfo[resourceName] = &pb.ResourceInfo{
+					Allocatable: info.Allocatable,
+					Capacity: info.Capacity,
+				}
+		}
+
+		zones[zoneName]= &pb.Zone{
+				Type: zone.Type,
+				// Parent: zone.Parent,
+				// Costs: updateMap(zone.Costs),
+				// Attributes: updateMap(zone.Attributes),
+		/*
+		TODO:
+		Parent: zone.Parent,
+		Costs: zone.Costs,
+		Attributes: zone.Attributes,
+
+		*/
+				Resources: resInfo,
+		}
+	}
+
+
+
+	stdoutLogger.Printf("Before sending NodeTopologyRequest, zones are: %v", spew.Sdump(zones))
+
+	topologyReq := &pb.NodeTopologyRequest{
+		Zones: zones,
+		NfdVersion: version.Get(),
+		NodeName:   nodeName,
+		TopologyPolicy:[]string{tmPolicy},
+	}
+	stdoutLogger.Printf("Before sending NodeTopologyRequest, topologyReq are: %v", spew.Sdump(topologyReq))
+
+	_, err := client.UpdateNodeTopology(ctx, topologyReq)
+	if err != nil {
+		stderrLogger.Printf("failed to set node topology CRD: %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func updateMap(input map[string]int)map[string]int32{
+	ret := make(map[string]int32)
+
+	for str, data := range input{
+		ret[str]=int32(data)
+	}
+	return ret
+}

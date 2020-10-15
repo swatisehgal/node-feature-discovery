@@ -1,5 +1,5 @@
 # Build node feature discovery
-FROM golang:1.14.7 as builder
+FROM golang:1.15.2 as builder
 
 # Get (cache) deps in a separate layer
 COPY go.mod go.sum /go/node-feature-discovery/
@@ -7,6 +7,7 @@ COPY go.mod go.sum /go/node-feature-discovery/
 WORKDIR /go/node-feature-discovery
 
 RUN go mod download
+
 
 # Do actual build
 COPY . /go/node-feature-discovery
@@ -16,12 +17,13 @@ ARG HOSTMOUNT_PREFIX
 
 RUN make install VERSION=$VERSION HOSTMOUNT_PREFIX=$HOSTMOUNT_PREFIX
 
-RUN make test
+#RUN make test
 
 
 # Create production image for running node feature discovery
-FROM debian:stretch-slim
-
+#TODO change back to Debian
+#FROM debian:stretch-slim
+FROM centos
 # Run as unprivileged user
 USER 65534:65534
 
