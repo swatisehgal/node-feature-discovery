@@ -3,13 +3,16 @@ module sigs.k8s.io/node-feature-discovery
 go 1.14
 
 require (
+	github.com/davecgh/go-spew v1.1.1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
+	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
 	github.com/klauspost/cpuid v1.2.3
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
 	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.4.0
+	github.com/swatisehgal/topologyapi v0.0.0-20201002094043-bc432ffbe41c
 	github.com/vektra/errors v0.0.0-20140903201135-c64d83aba85a
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9 // indirect
@@ -18,10 +21,11 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto v0.0.0-20201116205149-79184cff4dfe // indirect
 	google.golang.org/grpc v1.27.1
-	google.golang.org/protobuf v1.25.0 // indirect
+	google.golang.org/protobuf v1.25.0
 	k8s.io/api v0.19.4
 	k8s.io/apimachinery v0.19.4
 	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/kubelet v0.0.0
 	k8s.io/kubernetes v1.18.6
 	sigs.k8s.io/yaml v1.2.0
 )
