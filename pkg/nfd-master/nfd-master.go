@@ -103,6 +103,7 @@ type nfdMaster struct {
 	server    *grpc.Server
 	ready     chan bool
 	apihelper apihelper.APIHelpers
+	client  *clientset.Clientset
 }
 
 // statusOp is a json marshaling helper used for patching node status
@@ -139,6 +140,16 @@ func NewNfdMaster(args Args) (NfdMaster, error) {
 
 	// Initialize Kubernetes API helpers
 	nfd.apihelper = apihelper.K8sHelpers{Kubeconfig: args.Kubeconfig}
+
+
+	clientConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nfd, fmt.Errorf("Please run from inside the cluster")
+	}
+	nfd.client, err = clientset.NewForConfig(clientConfig)
+	if err != nil {
+		return nfd, fmt.Errorf("Error building example clientset: %s", err.Error())
+		}
 
 	return nfd, nil
 }
@@ -197,6 +208,7 @@ func (m *nfdMaster) Run() error {
 	}
 	m.server = grpc.NewServer(serverOpts...)
 	pb.RegisterLabelerServer(m.server, &labelerServer{args: m.args, apiHelper: m.apihelper})
+	topologypb.RegisterNodeTopologyServer(m.server, &nodeTopologyServer{args: m.args, cli: m.client})
 	stdoutLogger.Printf("gRPC server serving on port: %d", m.args.Port)
 	return m.server.Serve(lis)
 }
