@@ -16,10 +16,13 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/swatisehgal/topologyapi v0.0.0-20201002094043-bc432ffbe41c
 	github.com/vektra/errors v0.0.0-20140903201135-c64d83aba85a
-	golang.org/x/net v0.0.0-20200707034311-ab3426394381
-	google.golang.org/grpc v1.27.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect
-	google.golang.org/protobuf v1.24.0
+	golang.org/x/net v0.0.0-20201109172640-a11eb1b685be
+	golang.org/x/sys v0.0.0-20201109165425-215b40eba54c // indirect
+	golang.org/x/text v0.3.4 // indirect
+	google.golang.org/genproto v0.0.0-20201109203340-2640f1f9cdfb // indirect
+	google.golang.org/grpc v1.33.2
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.1 // indirect
+	google.golang.org/protobuf v1.25.0
 	k8s.io/api v0.19.0
 	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v11.0.0+incompatible

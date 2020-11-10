@@ -62,7 +62,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-g598c1f5-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
           name: nfd-master
           securityContext:
             allowPrivilegeEscalation: false
@@ -77,7 +77,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-g598c1f5-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
           name: nfd-worker
           securityContext:
             allowPrivilegeEscalation: false

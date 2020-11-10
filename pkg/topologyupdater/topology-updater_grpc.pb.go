@@ -11,7 +11,7 @@ import (
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion7
 
 // NodeTopologyClient is the client API for NodeTopology service.
 //
@@ -38,21 +38,19 @@ func (c *nodeTopologyClient) UpdateNodeTopology(ctx context.Context, in *NodeTop
 }
 
 // NodeTopologyServer is the server API for NodeTopology service.
-// All implementations must embed UnimplementedNodeTopologyServer
+// All implementations should embed UnimplementedNodeTopologyServer
 // for forward compatibility
 type NodeTopologyServer interface {
 	UpdateNodeTopology(context.Context, *NodeTopologyRequest) (*NodeTopologyResponse, error)
-	mustEmbedUnimplementedNodeTopologyServer()
 }
 
-// UnimplementedNodeTopologyServer must be embedded to have forward compatible implementations.
+// UnimplementedNodeTopologyServer should be embedded to have forward compatible implementations.
 type UnimplementedNodeTopologyServer struct {
 }
 
 func (UnimplementedNodeTopologyServer) UpdateNodeTopology(context.Context, *NodeTopologyRequest) (*NodeTopologyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateNodeTopology not implemented")
 }
-func (UnimplementedNodeTopologyServer) mustEmbedUnimplementedNodeTopologyServer() {}
 
 // UnsafeNodeTopologyServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to NodeTopologyServer will
@@ -61,7 +59,7 @@ type UnsafeNodeTopologyServer interface {
 	mustEmbedUnimplementedNodeTopologyServer()
 }
 
-func RegisterNodeTopologyServer(s *grpc.Server, srv NodeTopologyServer) {
+func RegisterNodeTopologyServer(s grpc.ServiceRegistrar, srv NodeTopologyServer) {
 	s.RegisterService(&_NodeTopology_serviceDesc, srv)
 }
 
