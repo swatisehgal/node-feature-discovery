@@ -30,17 +30,19 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-133-ga6def41-dirty
           name: nfd-topology-updater
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
+            runAsUser: 0
           command:
             - "nfd-topology-updater"
           args:
+            - "--kubelet-config-file=/podresources/config.yaml"
+            - "--podresources-socket=/podresources/kubelet.sock"
             - "--oneshot"
             - "--server=nfd-master:8080"
           volumeMounts:
