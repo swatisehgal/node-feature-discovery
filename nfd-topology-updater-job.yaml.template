@@ -37,10 +37,12 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
+            runAsUser: 0
           command:
             - "nfd-topology-updater"
           args:
+            - "--kubelet-config-file=/podresources/config.yaml"
+            - "--podresources-socket=/podresources/kubelet.sock"
             - "--oneshot"
             - "--server=nfd-master:8080"
           volumeMounts:

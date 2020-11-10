@@ -25,10 +25,8 @@ import (
 
 	"github.com/docopt/docopt-go"
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
-  // topologypb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
-	// "sigs.k8s.io/node-feature-discovery/pkg/exporter"
 	"sigs.k8s.io/node-feature-discovery/pkg/finder"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
@@ -45,8 +43,6 @@ func main() {
 		log.Printf("WARNING: version not set! Set -ldflags \"-X sigs.k8s.io/node-feature-discovery/pkg/version.version=`git describe --tags --dirty --always`\" during build or run.")
 	}
 
-	// Parse command-line arguments.
-	// _,finderArgs, err := argsParse(nil)
 	args,finderArgs, err := argsParse(nil)
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
@@ -69,10 +65,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize Finder instance: %v", err)
 	}
-	// crdExporter, err := exporter.NewExporter(tmPolicy)
-	// if err != nil {
-	// 	log.Fatalf("Failed to initialize crdExporter instance: %v", err)
-	// }
 
 	// CAUTION: these resources are expected to change rarely - if ever.
 	//So we are intentionally do this once during the process lifecycle.
@@ -88,34 +80,28 @@ func main() {
 		for {
 			log.Printf("Scanning\n")
 			podResources, err := finderInstance.Scan(nodeResourceData.GetDeviceResourceMap())
-			log.Printf("podResources is: %v\n", podResources)
+			log.Printf("podResources are: %v\n", podResources)
 			if err != nil {
 				log.Printf("Scan failed: %v\n", err)
 				continue
 			}
-			log.Printf("Aggregating\n")
 			zones = finder.Aggregate(podResources, nodeResourceData)
 			zonesChannel <- zones
-			log.Printf("zones:%v", spew.Sdump(zones))
-			// if err = crdExporter.CreateOrUpdate("default", zones); err != nil {
-			// 	log.Fatalf("ERROR: %v", err)
-			// }
+			log.Printf("After aggregating resources identified zones are:%v", spew.Sdump(zones))
+
 			time.Sleep(finderArgs.SleepInterval)
 		}
 	}()
 
-
-
-	log.Printf("Creating NewTopologyUpdater\n")
 	// Get new TopologyUpdater instance
 	instance, err := topology.NewTopologyUpdater(args, tmPolicy)
 	if err != nil {
 		log.Fatalf("Failed to initialize NfdWorker instance: %v", err)
 	}
 		for{
-			log.Printf("Received value on ZoneChannel\n")
+
 			zonesValue := <-zonesChannel
-			log.Printf("Updating\n")
+			log.Printf("Received value on ZoneChannel\n")
 			if err = instance.Update(zonesValue); err != nil {
 				log.Fatalf("ERROR: %v", err)
 			}

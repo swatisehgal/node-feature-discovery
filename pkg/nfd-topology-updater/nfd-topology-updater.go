@@ -40,13 +40,7 @@ var (
 	stderrLogger = log.New(os.Stderr, "", log.LstdFlags)
 	nodeName     = os.Getenv("NODE_NAME")
 )
-//
-// // Global config
-// type NFDConfig struct {
-// 	Sources sourcesConfig
-// }
-//
-// type sourcesConfig map[string]source.Config
+
 // Command line arguments
 type Args struct {
 	CaFile             string
@@ -68,7 +62,6 @@ type nfdTopologyUpdater struct {
 	clientConn     *grpc.ClientConn
 	client         pb.NodeTopologyClient
 	tmPolicy			 string
-	// config         NFDConfig
 }
 
 // Create new NewTopologyUpdater instance.
@@ -100,7 +93,7 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
 	stdoutLogger.Printf("NodeName: '%s'", nodeName)
-	stdoutLogger.Printf("UPdate received Zone: '%z'", spew.Sdump(zones))
+	stdoutLogger.Printf("Updating now received Zone: '%z'", spew.Sdump(zones))
 
 	// Connect to NFD master
 	err := w.connect()
@@ -109,14 +102,6 @@ func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 	}
 	defer w.disconnect()
 
-	// for {
-		// Parse and apply configuration
-		// w.configure(w.args.ConfigFile, w.args.Options)
-
-		// Get the set of feature labels.
-		// labels := createFeatureLabels(w.sources, w.labelWhiteList)
-
-		// Update the node with the CRD.
 		if w.client != nil {
 			err := advertiseNodeTopology(w.client, zones, w.tmPolicy)
 			if err != nil {
@@ -124,16 +109,6 @@ func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 			}
 		}
 
-
-
-	// 	if w.args.SleepInterval > 0 {
-	// 		time.Sleep(w.args.SleepInterval)
-	// 	} else {
-	// 		w.disconnect()
-	// 		// Sleep forever
-	// 		select {}
-	// 	}
-	// // }
 	return nil
 }
 
@@ -202,13 +177,8 @@ func (w *nfdTopologyUpdater) disconnect() {
 func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.Zone , tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
-	stdoutLogger.Printf("advertiseNodeTopology: Zone received z: %v", spew.Sdump(z))
-	stdoutLogger.Printf("advertiseNodeTopology: Sending Topology Update request to nfd-master")
 	zones := make(map[string]*pb.Zone)
 	for zoneName, zone := range z{
-		stdoutLogger.Printf("advertiseNodeTopology: zoneName: '%s'", zoneName)
-
 		resInfo := make(map[string]*pb.ResourceInfo)
 		for resourceName, info := range zone.Resources{
 			resInfo[resourceName] = &pb.ResourceInfo{
@@ -219,23 +189,15 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 
 		zones[zoneName]= &pb.Zone{
 				Type: zone.Type,
-				// Parent: zone.Parent,
-				// Costs: updateMap(zone.Costs),
-				// Attributes: updateMap(zone.Attributes),
-		/*
-		TODO:
-		Parent: zone.Parent,
-		Costs: zone.Costs,
-		Attributes: zone.Attributes,
-
-		*/
+				/*
+				TODO:
+				Parent: zone.Parent,
+				Costs: updateMap(zone.Costs),
+				Attributes: updateMap(zone.Attributes),
+				*/
 				Resources: resInfo,
 		}
 	}
-
-
-
-	stdoutLogger.Printf("Before sending NodeTopologyRequest, zones are: %v", spew.Sdump(zones))
 
 	topologyReq := &pb.NodeTopologyRequest{
 		Zones: zones,
@@ -243,7 +205,7 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 		NodeName:   nodeName,
 		TopologyPolicy:[]string{tmPolicy},
 	}
-	stdoutLogger.Printf("Before sending NodeTopologyRequest, topologyReq are: %v", spew.Sdump(topologyReq))
+	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", spew.Sdump(topologyReq))
 
 	_, err := client.UpdateNodeTopology(ctx, topologyReq)
 	if err != nil {

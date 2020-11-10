@@ -21,18 +21,20 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-133-ga6def41-dirty
           name: nfd-topology-updater
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
+            runAsUser: 0
           command:
             - "nfd-topology-updater"
           args:
-            - "--sleep-interval=60s"
+            - "--kubelet-config-file=/podresources/config.yaml"
+            - "--podresources-socket=/podresources/kubelet.sock"
+            - "--sleep-interval=3s"
             - "--server=nfd-master:8080"
 ## Enable TLS authentication (1/3)
 ## The example below assumes having the root certificate named ca.crt stored in

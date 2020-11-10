@@ -69,7 +69,7 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-133-ga6def41-dirty
           name: nfd-master
           securityContext:
             allowPrivilegeEscalation: false
@@ -77,18 +77,14 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-#          command:
-#            - "nfd-master"
           command:
-          - sleep
-          args:
-          - "1000000"
+            - "nfd-master"
         - env:
           - name: NODE_NAME
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
-          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-100-gbc972f6-dirty
+          image: quay.io/swsehgal/node-feature-discovery:v0.6.0-133-ga6def41-dirty
           name: nfd-topology-update
           securityContext:
             # we need either this or to fix kubelet.sock
@@ -98,14 +94,13 @@ spec:
              capabilities:
                drop: ["ALL"]
              readOnlyRootFilesystem: true
-#          command:
-#            - "nfd-topology-updater"
-#          args:
-#            - "--sleep-interval=60s"
           command:
-          - sleep
+            - "nfd-topology-updater"
           args:
-          - "1000000"
+            - "--kubelet-config-file=/podresources/config.yaml"
+            - "--podresources-socket=/podresources/kubelet.sock"
+            - "--watch-namespace=rte"
+            - "--sleep-interval=3s"
           volumeMounts:
             - name: kubelet-podresources-conf
               mountPath: /podresources/config.yaml
