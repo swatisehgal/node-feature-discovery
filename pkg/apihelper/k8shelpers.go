@@ -56,7 +56,7 @@ func (h K8sHelpers) GetClient() (*k8sclient.Clientset, error) {
 
 func (h K8sHelpers) GetNode(cli *k8sclient.Clientset, nodeName string) (*api.Node, error) {
 	// Get the node object using node name
-	node, err := cli.CoreV1().Nodes().Get(context.TODO(),nodeName, meta_v1.GetOptions{})
+	node, err := cli.CoreV1().Nodes().Get(context.TODO(), nodeName, meta_v1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
