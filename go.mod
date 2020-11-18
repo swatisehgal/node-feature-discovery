@@ -7,8 +7,10 @@ require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
-	github.com/google/go-cmp v0.5.0 // indirect
-	github.com/googleapis/gnostic v0.4.1
+	github.com/klauspost/cpuid v1.2.0
+	github.com/onsi/ginkgo v1.11.0
+	github.com/onsi/gomega v1.7.0
+	github.com/smartystreets/goconvey v1.6.4
 	github.com/stretchr/testify v1.4.0
 	github.com/swatisehgal/topologyapi v0.0.0-20201002094043-bc432ffbe41c
 	github.com/vektra/errors v0.0.0-20140903201135-c64d83aba85a
@@ -52,7 +54,7 @@ replace (
 	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.19.4
 	k8s.io/kubectl => k8s.io/kubectl v0.19.4
 	k8s.io/kubelet => k8s.io/kubelet v0.19.4
-	k8s.io/kubernetes => k8s.io/kubernetes v1.19.4
+	k8s.io/kubernetes => github.com/swatisehgal/kubernetes v1.19.0-beta.2.0.20200928123437-1c4f5ad40262
 	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.19.4
 	k8s.io/metrics => k8s.io/metrics v0.19.4
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.4
