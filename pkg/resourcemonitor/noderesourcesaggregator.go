@@ -129,7 +129,6 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 // GetContainerDevicesFromAllocatableResources normalize all compute resources to ContainerDevices.
 // This is helpful because cpuIDs are not represented as ContainerDevices, but with a different format;
 // Having a consistent representation of all the resources as ContainerDevices makes it simpler for
-// the code to consume them.
 func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, topo *ghw.TopologyInfo) []*podresourcesapi.ContainerDevices {
 	var contDevs []*podresourcesapi.ContainerDevices
 	for _, dev := range availRes.GetDevices() {
