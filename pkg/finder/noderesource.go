@@ -3,18 +3,18 @@ package finder
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
-	"k8s.io/kubernetes/pkg/kubelet/cm/cpuset"
+
+	"sigs.k8s.io/node-feature-discovery/pkg/topologyinfo/numa"
+	"sigs.k8s.io/node-feature-discovery/pkg/topologyinfo/numa/distances"
+	"sigs.k8s.io/node-feature-discovery/pkg/topologyinfo/sysfs"
 )
 
 const (
@@ -25,14 +25,15 @@ const (
 )
 
 type NodeResources struct {
-	devices         []*podresourcesapi.ContainerDevices
-	CPUs            []int64
-	NUMANode2CPUs   map[int][]int
-	cpuID2NUMAID    map[int]int
-	deviceId2NUMAID map[string]int
-	perNUMACapacity map[int]map[v1.ResourceName]int64
-	// deviceID -> resourcename
-	deviceID2ResourceMap map[string]string
+	devices              []*podresourcesapi.ContainerDevices
+	CPUs                 []int64
+	NUMANode2CPUs        map[int][]int
+	cpuID2NUMAID         map[int]int
+	deviceId2NUMAID      map[string]int
+	perNUMACapacity      map[int]map[v1.ResourceName]int64
+	deviceID2ResourceMap map[string]string // deviceID -> resourcename
+	numaInfo             *numa.Nodes
+	numaDists            *distances.Distances
 }
 
 type ResourceData struct {
@@ -40,15 +41,28 @@ type ResourceData struct {
 	capacity    int64
 }
 
-func NewNodeResources(sysfs string, podResourceClient podresourcesapi.PodResourcesListerClient) (*NodeResources, error) {
+func NewNodeResources(sysfsPath string, podResourceClient podresourcesapi.PodResourcesListerClient) (*NodeResources, error) {
+	var err error
+
+	nodes, err := numa.NewNodesFromSysFS(sysfsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	dists, err := distances.NewDistancesFromSysfs(sysfsPath)
+	if err != nil {
+		return nil, err
+	}
+
 	nodeResourceInstance := &NodeResources{
 		perNUMACapacity: make(map[int]map[v1.ResourceName]int64),
+		numaInfo:        &nodes,
+		numaDists:       dists,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultPodResourcesTimeout)
 	defer cancel()
 
-	var err error
 	//Pod Resource API client
 	resp, err := podResourceClient.GetAvailableResources(ctx, &podresourcesapi.AvailableResourcesRequest{})
 	if err != nil {
@@ -58,7 +72,7 @@ func NewNodeResources(sysfs string, podResourceClient podresourcesapi.PodResourc
 
 	var numaNodes []int
 	var cpu2NUMA map[int]int
-	numaNodes, nodeResourceInstance.NUMANode2CPUs, cpu2NUMA, err = getNodeCPUInfo(sysfs)
+	numaNodes, nodeResourceInstance.NUMANode2CPUs, cpu2NUMA, err = getNodeCPUInfo(sysfsPath)
 	if err != nil {
 		return nil, fmt.Errorf("Error in obtaining node CPU information: %v", err)
 	}
@@ -86,17 +100,17 @@ func NewNodeResources(sysfs string, podResourceClient podresourcesapi.PodResourc
 	return nodeResourceInstance, nil
 
 }
-func getNodeCPUInfo(sysfs string) ([]int, map[int][]int, map[int]int, error) {
-
-	// get list of numanodes from sysfs by querying /sys/devices/system/node/online
-	numanodes, err := getList(filepath.Join(sysfs, PathDevsSysNode, "online"))
+func getNodeCPUInfo(sysfsPath string) ([]int, map[int][]int, map[int]int, error) {
+	numaInfo, err := numa.NewNodesFromSysFS(sysfsPath)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	sys := sysfs.New(sysfsPath)
+
 	NUMANode2CPUs := make(map[int][]int)
-	for _, node := range numanodes {
-		cpus, err := getList(filepath.Join(sysfs, PathDevsSysNode, fmt.Sprintf("node%d", node), "cpulist"))
+	for _, node := range numaInfo.Online {
+		cpus, err := sys.ForNode(node).ReadList("cpulist")
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -110,19 +124,7 @@ func getNodeCPUInfo(sysfs string) ([]int, map[int][]int, map[int]int, error) {
 			cpu2NUMA[cpu] = nodeNum
 		}
 	}
-	return numanodes, NUMANode2CPUs, cpu2NUMA, nil
-}
-func getList(path string) ([]int, error) {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	cpus, err := cpuset.Parse(strings.TrimSpace(string(data)))
-	if err != nil {
-		return nil, err
-	}
-	return cpus.ToSlice(), nil
+	return numaInfo.Online, NUMANode2CPUs, cpu2NUMA, nil
 }
 
 func (n *NodeResources) GetDeviceResourceMap() map[string]string {
@@ -156,6 +158,10 @@ func updateNUMAMap(numaData map[int]map[v1.ResourceName]*ResourceData, ri Resour
 	}
 }
 
+func makeZoneName(numaID int) string {
+	return fmt.Sprintf("node-%d", numaID)
+}
+
 func Aggregate(podResData []PodResources, nodeResourceData *NodeResources) map[string]*v1alpha1.Zone {
 	zones := make(map[string]*v1alpha1.Zone)
 
@@ -176,17 +182,24 @@ func Aggregate(podResData []PodResources, nodeResourceData *NodeResources) map[s
 	}
 
 	for nodeNum, resList := range perNuma {
-		zoneName := fmt.Sprintf("node-%d", nodeNum)
 		zone := &v1alpha1.Zone{
 			Type:      "Node",
 			Resources: make(v1alpha1.ResourceInfoMap),
 		}
+
+		costs, err := makeCostsPerNumaNode(nodeResourceData.numaInfo, nodeResourceData.numaDists, nodeNum)
+		if err != nil {
+			// TODO log and move forward
+		} else {
+			zone.Costs = costs
+		}
+
 		for name, resData := range resList {
 			allocatableQty := *resource.NewQuantity(resData.allocatable, resource.DecimalSI)
 			capacityQty := *resource.NewQuantity(resData.capacity, resource.DecimalSI)
 			zone.Resources[name.String()] = v1alpha1.ResourceInfo{Allocatable: allocatableQty.String(), Capacity: capacityQty.String()}
 		}
-		zones[zoneName] = zone
+		zones[makeZoneName(nodeNum)] = zone
 	}
 	return zones
 }
@@ -212,4 +225,17 @@ func makeDeviceResourceMap(numaNodes int, devices []*podresourcesapi.ContainerDe
 		}
 	}
 	return perNUMACapacity, deviceId2Res, deviceId2NUMAID
+}
+
+func makeCostsPerNumaNode(numaInfo *numa.Nodes, numaDists *distances.Distances, numaIDSrc int) (map[string]int, error) {
+	nodeCosts := make(map[string]int)
+	for _, numaIDDst := range numaInfo.Online {
+		dist, err := numaDists.BetweenNodes(numaIDSrc, numaIDDst)
+		if err != nil {
+			return nil, err
+		}
+
+		nodeCosts[makeZoneName(numaIDDst)] = dist
+	}
+	return nodeCosts, nil
 }

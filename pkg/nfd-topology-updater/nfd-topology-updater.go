@@ -98,11 +98,13 @@ func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 	}
 	defer w.disconnect()
 
-	if w.client != nil {
-		err := advertiseNodeTopology(w.client, zones, w.tmPolicy)
-		if err != nil {
-			return fmt.Errorf("failed to advertise CRD: %s", err.Error())
-		}
+	if w.client == nil {
+		return nil
+	}
+
+	err = advertiseNodeTopology(w.client, zones, w.tmPolicy)
+	if err != nil {
+		return fmt.Errorf("failed to advertise node topology: %s", err.Error())
 	}
 
 	return nil
@@ -170,11 +172,11 @@ func (w *nfdTopologyUpdater) disconnect() {
 
 // advertiseNodeTopology advertises the topology CRD to a Kubernetes node
 // via the NFD server.
-func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.Zone, tmPolicy string) error {
+func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo map[string]*v1alpha1.Zone, tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	zones := make(map[string]*pb.Zone)
-	for zoneName, zone := range z {
+	for zoneName, zone := range zoneInfo {
 		resInfo := make(map[string]*pb.ResourceInfo)
 		for resourceName, info := range zone.Resources {
 			resInfo[resourceName] = &pb.ResourceInfo{
@@ -184,14 +186,9 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 		}
 
 		zones[zoneName] = &pb.Zone{
-			Type: zone.Type,
-			/*
-				TODO:
-				Parent: zone.Parent,
-				Costs: updateMap(zone.Costs),
-				Attributes: updateMap(zone.Attributes),
-			*/
+			Type:      zone.Type,
 			Resources: resInfo,
+			Costs:     updateMap(zone.Costs),
 		}
 	}
 
@@ -212,11 +209,10 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 	return nil
 }
 
-func updateMap(input map[string]int) map[string]int32 {
+func updateMap(data map[string]int) map[string]int32 {
 	ret := make(map[string]int32)
-
-	for str, data := range input {
-		ret[str] = int32(data)
+	for key, value := range data {
+		ret[key] = int32(value)
 	}
 	return ret
 }
