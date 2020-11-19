@@ -21,8 +21,6 @@ import (
 	"log"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
-
 	"github.com/docopt/docopt-go"
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	"sigs.k8s.io/node-feature-discovery/pkg/finder"
@@ -87,7 +85,7 @@ func main() {
 			}
 			zones = finder.Aggregate(podResources, nodeResourceData)
 			zonesChannel <- zones
-			log.Printf("After aggregating resources identified zones are:%v", spew.Sdump(zones))
+			log.Printf("After aggregating resources identified zones are:%v", topology.DumpObject(zones))
 
 			time.Sleep(finderArgs.SleepInterval)
 		}

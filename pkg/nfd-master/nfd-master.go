@@ -594,15 +594,9 @@ func modifyCRD(topoUpdaterZones map[string]*topologypb.Zone) map[string]v1alpha1
 		}
 
 		zones[zoneName] = v1alpha1.Zone{
-			Type:   zone.Type,
-			Parent: zone.Parent,
-			// Costs: updateMap(zone.Costs),
-			// Attributes: updateMap(zone.Attributes),
-			/*
-				Costs: zone.Costs,
-				Attributes: zone.Attributes,
-
-			*/
+			Type:      zone.Type,
+			Parent:    zone.Parent,
+			Costs:     updateMap(zone.Costs),
 			Resources: resInfo,
 		}
 	}
