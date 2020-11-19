@@ -25,8 +25,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
-
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -91,7 +89,7 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
 	stdoutLogger.Printf("NodeName: '%s'", nodeName)
-	stdoutLogger.Printf("Updating now received Zone: '%z'", spew.Sdump(zones))
+	stdoutLogger.Printf("Updating now received Zone: '%s'", DumpObject(zones))
 
 	// Connect to NFD master
 	err := w.connect()
@@ -203,7 +201,7 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 		NodeName:       nodeName,
 		TopologyPolicy: []string{tmPolicy},
 	}
-	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", spew.Sdump(topologyReq))
+	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", DumpObject(topologyReq))
 
 	_, err := client.UpdateNodeTopology(ctx, topologyReq)
 	if err != nil {
