@@ -146,9 +146,12 @@ func argsParse(argv []string) (topology.Args, finder.Args, error) {
                                   value implies no re-labeling (i.e. infinite
                                   sleep). [Default: 60s]
   --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
-  --sysfs=<mountpoint>            Mount point of the sysfs. [Default: /host-sys]
-  --kubelet-config-file=<path>    Kubelet config file path. [Default: /host-etc/kubernetes/kubelet.conf]
-  --podresources-socket=<path>    Pod Resource Socket path to use. `,
+  --sysfs=<mountpoint>            Mount point of the sysfs.
+                                  [Default: /host-sys]
+  --kubelet-config-file=<path>    Kubelet config file path.
+                                  [Default: /podresources/config.yaml]
+  --podresources-socket=<path>    Pod Resource Socket path to use.
+                                  [Default: /podresources/kubelet.sock] `,
 
 		ProgramName,
 		ProgramName,
