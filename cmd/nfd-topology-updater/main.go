@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/docopt/docopt-go"
-	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
-	"sigs.k8s.io/node-feature-discovery/pkg/version"
 	"sigs.k8s.io/node-feature-discovery/pkg/finder"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
+	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
+	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
 const (
@@ -43,7 +43,7 @@ func main() {
 		log.Printf("WARNING: version not set! Set -ldflags \"-X sigs.k8s.io/node-feature-discovery/pkg/version.version=`git describe --tags --dirty --always`\" during build or run.")
 	}
 
-	args,finderArgs, err := argsParse(nil)
+	args, finderArgs, err := argsParse(nil)
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
@@ -70,7 +70,7 @@ func main() {
 	//So we are intentionally do this once during the process lifecycle.
 	//TODO: Obtain node resources dynamically from the podresource API
 	zonesChannel := make(chan map[string]*v1alpha1.Zone)
-  var zones	map[string]*v1alpha1.Zone
+	var zones map[string]*v1alpha1.Zone
 	nodeResourceData, err := finder.NewNodeResources(finderArgs.SysfsRoot, podResClient)
 	if err != nil {
 		log.Fatalf("Failed to obtain node resource information: %v", err)
@@ -98,22 +98,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize NfdWorker instance: %v", err)
 	}
-		for{
+	for {
 
-			zonesValue := <-zonesChannel
-			log.Printf("Received value on ZoneChannel\n")
-			if err = instance.Update(zonesValue); err != nil {
-				log.Fatalf("ERROR: %v", err)
-			}
-			if args.Oneshot {
-				break
-			}
+		zonesValue := <-zonesChannel
+		log.Printf("Received value on ZoneChannel\n")
+		if err = instance.Update(zonesValue); err != nil {
+			log.Fatalf("ERROR: %v", err)
 		}
+		if args.Oneshot {
+			break
+		}
+	}
 }
 
 // argsParse parses the command line arguments passed to the program.
 // The argument argv is passed only for testing purposes.
-func argsParse(argv []string) (topology.Args,finder.Args, error) {
+func argsParse(argv []string) (topology.Args, finder.Args, error) {
 	args := topology.Args{}
 	finderArgs := finder.Args{}
 	usage := fmt.Sprintf(`%s.
@@ -128,29 +128,29 @@ func argsParse(argv []string) (topology.Args,finder.Args, error) {
   %s --version
 
   Options:
-  -h --help                   Show this screen.
-  --version                   Output version and exit.
-  --ca-file=<path>            Root certificate for verifying connections
-                              [Default: ]
-  --cert-file=<path>          Certificate used for authenticating connections
-                              [Default: ]
-  --key-file=<path>           Private key matching --cert-file
-                              [Default: ]
-  --server=<server>           NFD server address to connecto to.
-                              [Default: localhost:8080]
-  --server-name-override=<name> Name (CN) expect from server certificate, useful
-                              in testing
-                              [Default: ]
-  --no-publish                Do not publish discovered features to the
-                              cluster-local Kubernetes API server.
-  --oneshot                   Label once and exit.
-  --sleep-interval=<seconds>  Time to sleep between re-labeling. Non-positive
-                              value implies no re-labeling (i.e. infinite
-                              sleep). [Default: 60s]
-  --watch-namespace=<namespace> Namespace to watch pods for. Use "" for all namespaces.
+  -h --help                       Show this screen.
+  --version                       Output version and exit.
+  --ca-file=<path>                Root certificate for verifying connections
+                                  [Default: ]
+  --cert-file=<path>              Certificate used for authenticating connections
+                                  [Default: ]
+  --key-file=<path>               Private key matching --cert-file
+                                  [Default: ]
+  --server=<server>               NFD server address to connect to.
+                                  [Default: localhost:8080]
+  --server-name-override=<name>   Name (CN) expect from server certificate, useful
+                                  in testing
+                                  [Default: ]
+  --no-publish                    Do not publish discovered features to the
+                                  cluster-local Kubernetes API server.
+  --oneshot                       Update once and exit.
+  --sleep-interval=<seconds>      Time to sleep between re-labeling. Non-positive
+                                  value implies no re-labeling (i.e. infinite
+                                  sleep). [Default: 60s]
+  --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
   --sysfs=<mountpoint>            Mount point of the sysfs. [Default: /host-sys]
   --kubelet-config-file=<path>    Kubelet config file path. [Default: /host-etc/kubernetes/kubelet.conf]
-	--podresources-socket=<path>    Pod Resource Socket path to use. `,
+  --podresources-socket=<path>    Pod Resource Socket path to use. `,
 
 		ProgramName,
 		ProgramName,

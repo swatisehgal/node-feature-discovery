@@ -169,7 +169,7 @@ func Aggregate(podResData []PodResources, nodeResourceData *NodeResources) map[s
 
 	for _, podRes := range podResData {
 		for _, contRes := range podRes.Containers {
-				for _, res := range contRes.Resources {
+			for _, res := range contRes.Resources {
 				updateNUMAMap(perNuma, res, nodeResourceData)
 			}
 		}
@@ -191,7 +191,8 @@ func Aggregate(podResData []PodResources, nodeResourceData *NodeResources) map[s
 	return zones
 }
 
-func makeDeviceResourceMap(numaNodes int, devices []*podresourcesapi.ContainerDevices) (map[int]map[v1.ResourceName]int64, map[string]string, map[string]int) {	deviceId2NUMAID := make(map[string]int)
+func makeDeviceResourceMap(numaNodes int, devices []*podresourcesapi.ContainerDevices) (map[int]map[v1.ResourceName]int64, map[string]string, map[string]int) {
+	deviceId2NUMAID := make(map[string]int)
 	deviceId2Res := make(map[string]string)
 
 	perNUMACapacity := make(map[int]map[v1.ResourceName]int64)

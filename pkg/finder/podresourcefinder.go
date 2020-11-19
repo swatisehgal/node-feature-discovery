@@ -67,9 +67,9 @@ func (f *PodResourceFinder) Scan(deviceID2ResourceMap map[string]string) ([]PodR
 			}
 			devs := make(map[string][]string)
 			for _, device := range container.GetDevices() {
-					log.Printf("device  %v",device)
-					log.Printf("Before update devs[device.ResourceName]  %v",	devs[device.ResourceName])
-					devs[device.ResourceName] = device.DeviceIds
+				log.Printf("device  %v", device)
+				log.Printf("Before update devs[device.ResourceName]  %v", devs[device.ResourceName])
+				devs[device.ResourceName] = device.DeviceIds
 			}
 
 			cpuList := container.GetCpuIds()
@@ -117,7 +117,6 @@ func makeDeviceResourceInfo(devs map[string][]string, deviceID2ResMap map[string
 		})
 
 	}
-
 
 	return resInfos
 }
