@@ -128,29 +128,29 @@ func argsParse(argv []string) (topology.Args, finder.Args, error) {
   %s --version
 
   Options:
-  -h --help                   Show this screen.
-  --version                   Output version and exit.
-  --ca-file=<path>            Root certificate for verifying connections
-                              [Default: ]
-  --cert-file=<path>          Certificate used for authenticating connections
-                              [Default: ]
-  --key-file=<path>           Private key matching --cert-file
-                              [Default: ]
-  --server=<server>           NFD server address to connecto to.
-                              [Default: localhost:8080]
-  --server-name-override=<name> Name (CN) expect from server certificate, useful
-                              in testing
-                              [Default: ]
-  --no-publish                Do not publish discovered features to the
-                              cluster-local Kubernetes API server.
-  --oneshot                   Label once and exit.
-  --sleep-interval=<seconds>  Time to sleep between re-labeling. Non-positive
-                              value implies no re-labeling (i.e. infinite
-                              sleep). [Default: 60s]
-  --watch-namespace=<namespace> Namespace to watch pods for. Use "" for all namespaces.
+  -h --help                       Show this screen.
+  --version                       Output version and exit.
+  --ca-file=<path>                Root certificate for verifying connections
+                                  [Default: ]
+  --cert-file=<path>              Certificate used for authenticating connections
+                                  [Default: ]
+  --key-file=<path>               Private key matching --cert-file
+                                  [Default: ]
+  --server=<server>               NFD server address to connect to.
+                                  [Default: localhost:8080]
+  --server-name-override=<name>   Name (CN) expect from server certificate, useful
+                                  in testing
+                                  [Default: ]
+  --no-publish                    Do not publish discovered features to the
+                                  cluster-local Kubernetes API server.
+  --oneshot                       Update once and exit.
+  --sleep-interval=<seconds>      Time to sleep between re-labeling. Non-positive
+                                  value implies no re-labeling (i.e. infinite
+                                  sleep). [Default: 60s]
+  --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
   --sysfs=<mountpoint>            Mount point of the sysfs. [Default: /host-sys]
   --kubelet-config-file=<path>    Kubelet config file path. [Default: /host-etc/kubernetes/kubelet.conf]
-	--podresources-socket=<path>    Pod Resource Socket path to use. `,
+  --podresources-socket=<path>    Pod Resource Socket path to use. `,
 
 		ProgramName,
 		ProgramName,
