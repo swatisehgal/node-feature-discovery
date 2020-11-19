@@ -27,12 +27,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
+	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"sigs.k8s.io/node-feature-discovery/pkg/version"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
-	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
 var (
@@ -50,7 +50,6 @@ type Args struct {
 	Oneshot            bool
 	Server             string
 	ServerNameOverride string
-
 }
 
 type NfdTopologyUpdater interface {
@@ -58,16 +57,16 @@ type NfdTopologyUpdater interface {
 }
 
 type nfdTopologyUpdater struct {
-	args           Args
-	clientConn     *grpc.ClientConn
-	client         pb.NodeTopologyClient
-	tmPolicy			 string
+	args       Args
+	clientConn *grpc.ClientConn
+	client     pb.NodeTopologyClient
+	tmPolicy   string
 }
 
 // Create new NewTopologyUpdater instance.
 func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 	nfd := &nfdTopologyUpdater{
-		args:    args,
+		args:     args,
 		tmPolicy: policy,
 	}
 
@@ -83,7 +82,6 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 			return nfd, fmt.Errorf("--ca-file needs to be specified alongside --cert-file and --key-file")
 		}
 	}
-
 
 	return nfd, nil
 }
@@ -102,12 +100,12 @@ func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
 	}
 	defer w.disconnect()
 
-		if w.client != nil {
-			err := advertiseNodeTopology(w.client, zones, w.tmPolicy)
-			if err != nil {
-				return fmt.Errorf("failed to advertise CRD: %s", err.Error())
-			}
+	if w.client != nil {
+		err := advertiseNodeTopology(w.client, zones, w.tmPolicy)
+		if err != nil {
+			return fmt.Errorf("failed to advertise CRD: %s", err.Error())
 		}
+	}
 
 	return nil
 }
@@ -174,36 +172,36 @@ func (w *nfdTopologyUpdater) disconnect() {
 
 // advertiseNodeTopology advertises the topology CRD to a Kubernetes node
 // via the NFD server.
-func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.Zone , tmPolicy string) error {
+func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.Zone, tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	zones := make(map[string]*pb.Zone)
-	for zoneName, zone := range z{
+	for zoneName, zone := range z {
 		resInfo := make(map[string]*pb.ResourceInfo)
-		for resourceName, info := range zone.Resources{
+		for resourceName, info := range zone.Resources {
 			resInfo[resourceName] = &pb.ResourceInfo{
-					Allocatable: info.Allocatable,
-					Capacity: info.Capacity,
-				}
+				Allocatable: info.Allocatable,
+				Capacity:    info.Capacity,
+			}
 		}
 
-		zones[zoneName]= &pb.Zone{
-				Type: zone.Type,
-				/*
+		zones[zoneName] = &pb.Zone{
+			Type: zone.Type,
+			/*
 				TODO:
 				Parent: zone.Parent,
 				Costs: updateMap(zone.Costs),
 				Attributes: updateMap(zone.Attributes),
-				*/
-				Resources: resInfo,
+			*/
+			Resources: resInfo,
 		}
 	}
 
 	topologyReq := &pb.NodeTopologyRequest{
-		Zones: zones,
-		NfdVersion: version.Get(),
-		NodeName:   nodeName,
-		TopologyPolicy:[]string{tmPolicy},
+		Zones:          zones,
+		NfdVersion:     version.Get(),
+		NodeName:       nodeName,
+		TopologyPolicy: []string{tmPolicy},
 	}
 	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", spew.Sdump(topologyReq))
 
@@ -216,11 +214,11 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, z map[string]*v1alpha1.
 	return nil
 }
 
-func updateMap(input map[string]int)map[string]int32{
+func updateMap(input map[string]int) map[string]int32 {
 	ret := make(map[string]int32)
 
-	for str, data := range input{
-		ret[str]=int32(data)
+	for str, data := range input {
+		ret[str] = int32(data)
 	}
 	return ret
 }

@@ -24,12 +24,12 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/docopt/docopt-go"
-	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
-	"sigs.k8s.io/node-feature-discovery/pkg/version"
 	"sigs.k8s.io/node-feature-discovery/pkg/finder"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
+	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
+	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
 const (
@@ -43,7 +43,7 @@ func main() {
 		log.Printf("WARNING: version not set! Set -ldflags \"-X sigs.k8s.io/node-feature-discovery/pkg/version.version=`git describe --tags --dirty --always`\" during build or run.")
 	}
 
-	args,finderArgs, err := argsParse(nil)
+	args, finderArgs, err := argsParse(nil)
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
@@ -70,7 +70,7 @@ func main() {
 	//So we are intentionally do this once during the process lifecycle.
 	//TODO: Obtain node resources dynamically from the podresource API
 	zonesChannel := make(chan map[string]*v1alpha1.Zone)
-  var zones	map[string]*v1alpha1.Zone
+	var zones map[string]*v1alpha1.Zone
 	nodeResourceData, err := finder.NewNodeResources(finderArgs.SysfsRoot, podResClient)
 	if err != nil {
 		log.Fatalf("Failed to obtain node resource information: %v", err)
@@ -98,22 +98,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize NfdWorker instance: %v", err)
 	}
-		for{
+	for {
 
-			zonesValue := <-zonesChannel
-			log.Printf("Received value on ZoneChannel\n")
-			if err = instance.Update(zonesValue); err != nil {
-				log.Fatalf("ERROR: %v", err)
-			}
-			if args.Oneshot {
-				break
-			}
+		zonesValue := <-zonesChannel
+		log.Printf("Received value on ZoneChannel\n")
+		if err = instance.Update(zonesValue); err != nil {
+			log.Fatalf("ERROR: %v", err)
 		}
+		if args.Oneshot {
+			break
+		}
+	}
 }
 
 // argsParse parses the command line arguments passed to the program.
 // The argument argv is passed only for testing purposes.
-func argsParse(argv []string) (topology.Args,finder.Args, error) {
+func argsParse(argv []string) (topology.Args, finder.Args, error) {
 	args := topology.Args{}
 	finderArgs := finder.Args{}
 	usage := fmt.Sprintf(`%s.
