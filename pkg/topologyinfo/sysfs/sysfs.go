@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fromanirh/cpuset"
+	"k8s.io/kubernetes/pkg/kubelet/cm/cpuset"
 )
 
 /*
@@ -63,7 +63,11 @@ func (p Path) ReadList(name string) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	return cpuset.Parse(data)
+	cpus, err := cpuset.Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	return cpus.ToSlice(), nil
 }
 
 func (p Path) ForNode(nodeID int) Path {
