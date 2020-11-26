@@ -23,10 +23,10 @@ import (
 
 	"github.com/docopt/docopt-go"
 	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
-	"sigs.k8s.io/node-feature-discovery/pkg/finder"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
+	"sigs.k8s.io/node-feature-discovery/pkg/resourcemonitor"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
@@ -41,27 +41,27 @@ func main() {
 		log.Printf("WARNING: version not set! Set -ldflags \"-X sigs.k8s.io/node-feature-discovery/pkg/version.version=`git describe --tags --dirty --always`\" during build or run.")
 	}
 
-	args, finderArgs, err := argsParse(nil)
+	args, resourcemonitorArgs, err := argsParse(nil)
 	if err != nil {
 		log.Fatalf("failed to parse command line: %v", err)
 	}
 
-	klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(finderArgs.KubeletConfigFile)
+	klConfig, err := kubeconf.GetKubeletConfigFromLocalFile(resourcemonitorArgs.KubeletConfigFile)
 	if err != nil {
 		log.Fatalf("error getting topology Manager Policy: %v", err)
 	}
 	tmPolicy := klConfig.TopologyManagerPolicy
 	log.Printf("Detected kubelet Topology Manager policy %q", tmPolicy)
 
-	podResClient, err := podres.GetPodResClient(finderArgs.PodResourceSocketPath)
+	podResClient, err := podres.GetPodResClient(resourcemonitorArgs.PodResourceSocketPath)
 	if err != nil {
 		log.Fatalf("Failed to get PodResource Client: %v", err)
 	}
-	var finderInstance finder.Finder
+	var resScan resourcemonitor.ResourcesScanner
 
-	finderInstance, err = finder.NewPodResourceFinder(finderArgs, podResClient)
+	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs, podResClient)
 	if err != nil {
-		log.Fatalf("Failed to initialize Finder instance: %v", err)
+		log.Fatalf("Failed to initialize ResourceMonitor instance: %v", err)
 	}
 
 	// CAUTION: these resources are expected to change rarely - if ever.
@@ -69,25 +69,29 @@ func main() {
 	//TODO: Obtain node resources dynamically from the podresource API
 	zonesChannel := make(chan map[string]*v1alpha1.Zone)
 	var zones map[string]*v1alpha1.Zone
-	nodeResourceData, err := finder.NewNodeResources(finderArgs.SysfsRoot, podResClient)
+
+	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.SysfsRoot, podResClient)
 	if err != nil {
 		log.Fatalf("Failed to obtain node resource information: %v", err)
 	}
-	log.Printf("nodeResourceData is: %v\n", nodeResourceData)
+
+	log.Printf("resAggr is: %v\n", resAggr)
 	go func() {
 		for {
 			log.Printf("Scanning\n")
-			podResources, err := finderInstance.Scan(nodeResourceData.GetDeviceResourceMap())
+
+			podResources, err := resScan.Scan()
 			log.Printf("podResources are: %v\n", podResources)
 			if err != nil {
 				log.Printf("Scan failed: %v\n", err)
 				continue
 			}
-			zones = finder.Aggregate(podResources, nodeResourceData)
+
+			zones = resAggr.Aggregate(podResources)
 			zonesChannel <- zones
 			log.Printf("After aggregating resources identified zones are:%v", topology.DumpObject(zones))
 
-			time.Sleep(finderArgs.SleepInterval)
+			time.Sleep(resourcemonitorArgs.SleepInterval)
 		}
 	}()
 
@@ -111,9 +115,9 @@ func main() {
 
 // argsParse parses the command line arguments passed to the program.
 // The argument argv is passed only for testing purposes.
-func argsParse(argv []string) (topology.Args, finder.Args, error) {
+func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
 	args := topology.Args{}
-	finderArgs := finder.Args{}
+	resourcemonitorArgs := resourcemonitor.Args{}
 	usage := fmt.Sprintf(`%s.
 
   Usage:
@@ -171,20 +175,20 @@ func argsParse(argv []string) (topology.Args, finder.Args, error) {
 	args.Server = arguments["--server"].(string)
 	args.ServerNameOverride = arguments["--server-name-override"].(string)
 	args.Oneshot = arguments["--oneshot"].(bool)
-	finderArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
+	resourcemonitorArgs.SleepInterval, err = time.ParseDuration(arguments["--sleep-interval"].(string))
 	if err != nil {
-		return args, finderArgs, fmt.Errorf("invalid --sleep-interval specified: %s", err.Error())
+		return args, resourcemonitorArgs, fmt.Errorf("invalid --sleep-interval specified: %s", err.Error())
 	}
 	if ns, ok := arguments["--watch-namespace"].(string); ok {
-		finderArgs.Namespace = ns
+		resourcemonitorArgs.Namespace = ns
 	}
 	if kubeletConfigPath, ok := arguments["--kubelet-config-file"].(string); ok {
-		finderArgs.KubeletConfigFile = kubeletConfigPath
+		resourcemonitorArgs.KubeletConfigFile = kubeletConfigPath
 	}
-	finderArgs.SysfsRoot = arguments["--sysfs"].(string)
+	resourcemonitorArgs.SysfsRoot = arguments["--sysfs"].(string)
 	if path, ok := arguments["--podresources-socket"].(string); ok {
-		finderArgs.PodResourceSocketPath = path
+		resourcemonitorArgs.PodResourceSocketPath = path
 	}
 
-	return args, finderArgs, nil
+	return args, resourcemonitorArgs, nil
 }
