@@ -5,6 +5,7 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
+	github.com/fromanirh/topologyinfo v0.0.0-20201125121915-e63b06e7cf66
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
 	github.com/klauspost/cpuid v1.2.0
