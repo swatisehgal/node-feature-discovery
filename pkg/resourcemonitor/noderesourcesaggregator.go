@@ -145,7 +145,7 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 // This is helpful because cpuIDs are not represented as ContainerDevices, but with a different format;
 // Having a consistent representation of all the resources as ContainerDevices makes it simpler for
 // the code to consume them.
-func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, cpus *cpus.CPUs) []*podresourcesapi.ContainerDevices {
+func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, cpuInfo *cpus.CPUs) []*podresourcesapi.ContainerDevices {
 	var contDevs []*podresourcesapi.ContainerDevices
 	for _, dev := range availRes.GetDevices() {
 		contDevs = append(contDevs, dev)
@@ -153,7 +153,7 @@ func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.Alloc
 
 	cpusPerNuma := make(map[int][]string)
 	for _, cpuID := range availRes.GetCpuIds() {
-		nodeID, ok := cpus.GetNodeIDForCPU(int(cpuID))
+		nodeID, ok := cpuInfo.GetNodeIDForCPU(int(cpuID))
 		if !ok {
 			log.Printf("cannot find the NUMA node for CPU %d", cpuID)
 			continue
@@ -217,7 +217,7 @@ func MakeNodeCapacity(devices []*podresourcesapi.ContainerDevices) map[int]map[v
 			if !ok {
 				nodeRes = make(map[v1.ResourceName]int64)
 			}
-			nodeRes[v1.ResourceName(resourceName)] = int64(len(device.GetDeviceIds()))
+			nodeRes[v1.ResourceName(resourceName)] += int64(len(device.GetDeviceIds()))
 			perNUMACapacity[nodeNum] = nodeRes
 		}
 	}

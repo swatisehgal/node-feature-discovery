@@ -224,8 +224,8 @@ github.com/fromanirh/kubernetes v1.18.0-alpha.1.0.20201127133213-6f0bc0d851ab h1
 github.com/fromanirh/kubernetes v1.18.0-alpha.1.0.20201127133213-6f0bc0d851ab/go.mod h1:/xrHGNfoQphtkhZvyd5bA1lRmz+QkDVmBZu+O8QMoek=
 github.com/fromanirh/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20201127133213-6f0bc0d851ab h1:t6dvIjya+kryw71YUtVVWcgEnzu8NPltLUp9wvMKPa0=
 github.com/fromanirh/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20201127133213-6f0bc0d851ab/go.mod h1:B80sNAi0WQAEMuil1AWJk58uBTWbeaB2rpalid8bwVA=
-github.com/fromanirh/topologyinfo v0.0.0-20201125121915-e63b06e7cf66 h1:XuDtBFMPRtBok14f9sc4bSKUilrfR/M3MxnwSOxQGWE=
-github.com/fromanirh/topologyinfo v0.0.0-20201125121915-e63b06e7cf66/go.mod h1:yPJWY6Nhjaj7LcUFi1bpOGgsKM4euCqGhirrcUEJCDk=
+github.com/fromanirh/topologyinfo v0.0.1 h1:ZujC2PDbBv/5m2uqISv17RKLceW9ENwEWaQpjO2wiLE=
+github.com/fromanirh/topologyinfo v0.0.1/go.mod h1:yPJWY6Nhjaj7LcUFi1bpOGgsKM4euCqGhirrcUEJCDk=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
 github.com/fsnotify/fsnotify v1.4.9 h1:hsms1Qyu0jgnwNXIxa+/V/PDsU6CfLf6CNO8H7IWoS4=
 github.com/fsnotify/fsnotify v1.4.9/go.mod h1:znqG4EE+3YCdAaPaxE2ZRY/06pZUdp0tY4IgpuI1SZQ=
