@@ -22,14 +22,14 @@ import (
 	"log"
 	"time"
 
-	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
+	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 
 	"github.com/fromanirh/topologyinfo/cpus"
 	"github.com/fromanirh/topologyinfo/numa"
 	"github.com/fromanirh/topologyinfo/numa/distances"
+	topologyv1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 )
 
 const (
@@ -73,7 +73,7 @@ func NewResourcesAggregator(sysfsPath string, podResourceClient podresourcesapi.
 	defer cancel()
 
 	//Pod Resource API client
-	resp, err := podResourceClient.GetAvailableResources(ctx, &podresourcesapi.AvailableResourcesRequest{})
+	resp, err := podResourceClient.GetAllocatableResources(ctx, &podresourcesapi.AllocatableResourcesRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("Can't receive response: %v.Get(_) = _, %v", podResourceClient, err)
 	}
@@ -81,7 +81,7 @@ func NewResourcesAggregator(sysfsPath string, podResourceClient podresourcesapi.
 	return NewResourcesAggregatorFromData(cpuInfo, nodes, dists, resp), nil
 }
 
-func NewResourcesAggregatorFromData(cpuInfo *cpus.CPUs, nodes numa.Nodes, dists *distances.Distances, resp *podresourcesapi.AvailableResourcesResponse) ResourcesAggregator {
+func NewResourcesAggregatorFromData(cpuInfo *cpus.CPUs, nodes numa.Nodes, dists *distances.Distances, resp *podresourcesapi.AllocatableResourcesResponse) ResourcesAggregator {
 	allDevs := GetContainerDevicesFromAllocatableResources(resp, cpuInfo)
 	return &nodeResources{
 		cpuInfo:           cpuInfo,
@@ -93,7 +93,7 @@ func NewResourcesAggregatorFromData(cpuInfo *cpus.CPUs, nodes numa.Nodes, dists 
 }
 
 // Aggregate provides the mapping (numa zone name) -> Zone from the given PodResources.
-func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[string]*v1alpha1.Zone {
+func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[string]*topologyv1alpha1.Zone {
 	perNuma := make(map[int]map[v1.ResourceName]*resourceData)
 	for nodeNum, nodeRes := range noderesourceData.perNUMACapacity {
 		perNuma[nodeNum] = make(map[v1.ResourceName]*resourceData)
@@ -113,12 +113,12 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 		}
 	}
 
-	zones := make(map[string]*v1alpha1.Zone)
+	zones := make(map[string]*topologyv1alpha1.Zone)
 
 	for nodeNum, resList := range perNuma {
-		zone := &v1alpha1.Zone{
+		zone := &topologyv1alpha1.Zone{
 			Type:      "Node",
-			Resources: make(v1alpha1.ResourceInfoMap),
+			Resources: make(topologyv1alpha1.ResourceInfoMap),
 		}
 
 		costs, err := makeCostsPerNumaNode(noderesourceData.numaInfo, noderesourceData.numaDists, nodeNum)
@@ -131,7 +131,7 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 		for name, resData := range resList {
 			allocatableQty := *resource.NewQuantity(resData.allocatable, resource.DecimalSI)
 			capacityQty := *resource.NewQuantity(resData.capacity, resource.DecimalSI)
-			zone.Resources[name.String()] = v1alpha1.ResourceInfo{
+			zone.Resources[name.String()] = topologyv1alpha1.ResourceInfo{
 				Allocatable: allocatableQty.String(),
 				Capacity:    capacityQty.String(),
 			}
@@ -145,7 +145,7 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 // This is helpful because cpuIDs are not represented as ContainerDevices, but with a different format;
 // Having a consistent representation of all the resources as ContainerDevices makes it simpler for
 // the code to consume them.
-func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AvailableResourcesResponse, cpus *cpus.CPUs) []*podresourcesapi.ContainerDevices {
+func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, cpus *cpus.CPUs) []*podresourcesapi.ContainerDevices {
 	var contDevs []*podresourcesapi.ContainerDevices
 	for _, dev := range availRes.GetDevices() {
 		contDevs = append(contDevs, dev)
