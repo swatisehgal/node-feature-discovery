@@ -17,64 +17,30 @@ limitations under the License.
 package resourcemonitor
 
 import (
+	"encoding/json"
 	"log"
 	"testing"
+
+	"github.com/jaypipes/ghw"
 
 	cmp "github.com/google/go-cmp/cmp"
 	. "github.com/smartystreets/goconvey/convey"
 
 	topov1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 	v1 "k8s.io/kubelet/pkg/apis/podresources/v1"
-
-	"github.com/fromanirh/topologyinfo/cpus"
-	"github.com/fromanirh/topologyinfo/numa"
-	"github.com/fromanirh/topologyinfo/numa/distances"
 )
 
 func TestResourcesAggregator(t *testing.T) {
 
+	fakeTopo := ghw.TopologyInfo{}
+	Convey("When recovering test topology from JSON data", t, func() {
+		err := json.Unmarshal([]byte(testTopology), &fakeTopo)
+		So(err, ShouldBeNil)
+	})
+
 	var resAggr ResourcesAggregator
 
 	Convey("When I aggregate the node resources fake data and no pod allocation", t, func() {
-		cpuInfo := &cpus.CPUs{
-			Present: cpus.CPUIdList{0, 1},
-			Online:  cpus.CPUIdList{0, 1},
-			CoreCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1},
-				1: cpus.CPUIdList{0, 1},
-				2: cpus.CPUIdList{2, 3},
-				3: cpus.CPUIdList{2, 3},
-				4: cpus.CPUIdList{4, 5},
-				5: cpus.CPUIdList{4, 5},
-				6: cpus.CPUIdList{6, 7},
-				7: cpus.CPUIdList{6, 7},
-			},
-			PackageCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1, 2, 3},
-				1: cpus.CPUIdList{4, 5, 6, 7},
-			},
-			Packages:  cpus.CPUIdList{0, 1},
-			NUMANodes: cpus.CPUIdList{0, 1},
-			NUMANodeCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1, 2, 3},
-				1: cpus.CPUIdList{4, 5, 6, 7},
-			},
-		}
-
-		nodes := numa.Nodes{
-			Online:           []int{0, 1},
-			Possible:         []int{0, 1},
-			WithCPU:          []int{0, 1},
-			WithMemory:       []int{0, 1},
-			WithNormalMemory: []int{0, 1},
-		}
-
-		dists, err := distances.NewDistancesFromData(map[string]string{
-			"0": "10 30\n",
-			"1": "30 10\n",
-		})
-		So(err, ShouldBeNil)
-
 		availRes := &v1.AllocatableResourcesResponse{
 			Devices: []*v1.ContainerDevices{
 				&v1.ContainerDevices{
@@ -155,14 +121,13 @@ func TestResourcesAggregator(t *testing.T) {
 					},
 				},
 			},
-			CpuIds: []int64{0, 1, 2, 3, 4, 5, 6, 7},
+			CpuIds: []int64{
+				0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+				12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+			},
 		}
 
-		resAggr = NewResourcesAggregatorFromData(cpuInfo.Update(), nodes, dists, availRes)
-
-		Convey("Creating a Resources Aggregator using a mock client", func() {
-			So(err, ShouldBeNil)
-		})
+		resAggr = NewResourcesAggregatorFromData(&fakeTopo, availRes)
 
 		Convey("When aggregating resources", func() {
 			expected := map[string]*topov1alpha1.Zone{
@@ -170,7 +135,7 @@ func TestResourcesAggregator(t *testing.T) {
 					Type: "Node",
 					Costs: map[string]int{
 						"node-0": 10,
-						"node-1": 30,
+						"node-1": 20,
 					},
 					Resources: topov1alpha1.ResourceInfoMap{
 						"fake.io/net": topov1alpha1.ResourceInfo{
@@ -178,15 +143,15 @@ func TestResourcesAggregator(t *testing.T) {
 							Capacity:    "4",
 						},
 						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "4",
-							Capacity:    "4",
+							Allocatable: "12",
+							Capacity:    "12",
 						},
 					},
 				},
 				"node-1": &topov1alpha1.Zone{
 					Type: "Node",
 					Costs: map[string]int{
-						"node-0": 30,
+						"node-0": 20,
 						"node-1": 10,
 					},
 					Resources: topov1alpha1.ResourceInfoMap{
@@ -199,8 +164,8 @@ func TestResourcesAggregator(t *testing.T) {
 							Capacity:    "2",
 						},
 						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "4",
-							Capacity:    "4",
+							Allocatable: "12",
+							Capacity:    "12",
 						},
 					},
 				},
@@ -213,45 +178,6 @@ func TestResourcesAggregator(t *testing.T) {
 	})
 
 	Convey("When I aggregate the node resources fake data and some pod allocation", t, func() {
-		cpuInfo := &cpus.CPUs{
-			Present: cpus.CPUIdList{0, 1},
-			Online:  cpus.CPUIdList{0, 1},
-			CoreCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1},
-				1: cpus.CPUIdList{0, 1},
-				2: cpus.CPUIdList{2, 3},
-				3: cpus.CPUIdList{2, 3},
-				4: cpus.CPUIdList{4, 5},
-				5: cpus.CPUIdList{4, 5},
-				6: cpus.CPUIdList{6, 7},
-				7: cpus.CPUIdList{6, 7},
-			},
-			PackageCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1, 2, 3},
-				1: cpus.CPUIdList{4, 5, 6, 7},
-			},
-			Packages:  cpus.CPUIdList{0, 1},
-			NUMANodes: cpus.CPUIdList{0, 1},
-			NUMANodeCPUs: map[int]cpus.CPUIdList{
-				0: cpus.CPUIdList{0, 1, 2, 3},
-				1: cpus.CPUIdList{4, 5, 6, 7},
-			},
-		}
-
-		nodes := numa.Nodes{
-			Online:           []int{0, 1},
-			Possible:         []int{0, 1},
-			WithCPU:          []int{0, 1},
-			WithMemory:       []int{0, 1},
-			WithNormalMemory: []int{0, 1},
-		}
-
-		dists, err := distances.NewDistancesFromData(map[string]string{
-			"0": "10 30\n",
-			"1": "30 10\n",
-		})
-		So(err, ShouldBeNil)
-
 		availRes := &v1.AllocatableResourcesResponse{
 			Devices: []*v1.ContainerDevices{
 				&v1.ContainerDevices{
@@ -288,14 +214,14 @@ func TestResourcesAggregator(t *testing.T) {
 					},
 				},
 			},
-			CpuIds: []int64{0, 1, 2, 3, 4, 5, 6, 7},
+			CpuIds: []int64{
+				0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+				12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+			},
 		}
 
-		resAggr = NewResourcesAggregatorFromData(cpuInfo.Update(), nodes, dists, availRes)
+		resAggr = NewResourcesAggregatorFromData(&fakeTopo, availRes)
 
-		Convey("Creating a Resources Aggregator using a mock client", func() {
-			So(err, ShouldBeNil)
-		})
 		Convey("When aggregating resources", func() {
 			podRes := []PodResources{
 				PodResources{
@@ -307,7 +233,7 @@ func TestResourcesAggregator(t *testing.T) {
 							Resources: []ResourceInfo{
 								ResourceInfo{
 									Name: "cpu",
-									Data: []string{"6", "7"},
+									Data: []string{"5", "7"},
 								},
 								ResourceInfo{
 									Name: "fake.io/net",
@@ -324,7 +250,7 @@ func TestResourcesAggregator(t *testing.T) {
 					Type: "Node",
 					Costs: map[string]int{
 						"node-0": 10,
-						"node-1": 30,
+						"node-1": 20,
 					},
 					Resources: topov1alpha1.ResourceInfoMap{
 						"fake.io/net": topov1alpha1.ResourceInfo{
@@ -332,15 +258,15 @@ func TestResourcesAggregator(t *testing.T) {
 							Capacity:    "1",
 						},
 						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "4",
-							Capacity:    "4",
+							Allocatable: "12",
+							Capacity:    "12",
 						},
 					},
 				},
 				"node-1": &topov1alpha1.Zone{
 					Type: "Node",
 					Costs: map[string]int{
-						"node-0": 30,
+						"node-0": 20,
 						"node-1": 10,
 					},
 					Resources: topov1alpha1.ResourceInfoMap{
@@ -353,8 +279,8 @@ func TestResourcesAggregator(t *testing.T) {
 							Capacity:    "1",
 						},
 						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "2",
-							Capacity:    "4",
+							Allocatable: "10",
+							Capacity:    "12",
 						},
 					},
 				},
@@ -367,3 +293,135 @@ func TestResourcesAggregator(t *testing.T) {
 	})
 
 }
+
+// ghwc topology -f json
+var testTopology string = `{
+    "nodes": [
+      {
+        "id": 0,
+        "cores": [
+          {
+            "id": 0,
+            "index": 0,
+            "total_threads": 2,
+            "logical_processors": [
+              0,
+              12
+            ]
+          },
+          {
+            "id": 10,
+            "index": 1,
+            "total_threads": 2,
+            "logical_processors": [
+              10,
+              22
+            ]
+          },
+          {
+            "id": 1,
+            "index": 2,
+            "total_threads": 2,
+            "logical_processors": [
+              14,
+              2
+            ]
+          },
+          {
+            "id": 2,
+            "index": 3,
+            "total_threads": 2,
+            "logical_processors": [
+              16,
+              4
+            ]
+          },
+          {
+            "id": 8,
+            "index": 4,
+            "total_threads": 2,
+            "logical_processors": [
+              18,
+              6
+            ]
+          },
+          {
+            "id": 9,
+            "index": 5,
+            "total_threads": 2,
+            "logical_processors": [
+              20,
+              8
+            ]
+          }
+        ],
+        "distances": [
+          10,
+          20
+        ]
+      },
+      {
+        "id": 1,
+        "cores": [
+          {
+            "id": 0,
+            "index": 0,
+            "total_threads": 2,
+            "logical_processors": [
+              1,
+              13
+            ]
+          },
+          {
+            "id": 10,
+            "index": 1,
+            "total_threads": 2,
+            "logical_processors": [
+              11,
+              23
+            ]
+          },
+          {
+            "id": 1,
+            "index": 2,
+            "total_threads": 2,
+            "logical_processors": [
+              15,
+              3
+            ]
+          },
+          {
+            "id": 2,
+            "index": 3,
+            "total_threads": 2,
+            "logical_processors": [
+              17,
+              5
+            ]
+          },
+          {
+            "id": 8,
+            "index": 4,
+            "total_threads": 2,
+            "logical_processors": [
+              19,
+              7
+            ]
+          },
+          {
+            "id": 9,
+            "index": 5,
+            "total_threads": 2,
+            "logical_processors": [
+              21,
+              9
+            ]
+          }
+        ],
+        "distances": [
+          20,
+          10
+        ]
+      }
+    ]
+}`
