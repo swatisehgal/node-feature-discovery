@@ -23,9 +23,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 
-	"k8s.io/api/core/v1"
-
-	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
+	v1 "k8s.io/api/core/v1"
+	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 )
 
 type PodResourcesScanner struct {
