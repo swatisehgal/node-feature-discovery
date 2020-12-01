@@ -48,6 +48,7 @@ HOSTMOUNT_PREFIX ?= /
 
 KUBECONFIG ?=
 E2E_TEST_CONFIG ?=
+PULL_IF_NOT_PRESENT ?=
 
 LDFLAGS = -ldflags "-s -w -X sigs.k8s.io/node-feature-discovery/pkg/version.version=$(VERSION) -X sigs.k8s.io/node-feature-discovery/source.pathPrefix=$(HOSTMOUNT_PREFIX)"
 
@@ -105,7 +106,7 @@ test:
 	$(GO_CMD) test ./cmd/... ./pkg/...
 
 e2e-test:
-	$(GO_CMD) test -v ./test/e2e/ -args -nfd.repo=$(IMAGE_REPO) -nfd.tag=$(IMAGE_TAG_NAME) -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) -ginkgo.focus="\[NFD\]"
+	$(GO_CMD) test -v ./test/e2e/ -args -nfd.repo=$(IMAGE_REPO) -nfd.tag=$(IMAGE_TAG_NAME) -kubeconfig=$(KUBECONFIG) -nfd.e2e-config=$(E2E_TEST_CONFIG) -nfd.pull-if-not-present=$(PULL_IF_NOT_PRESENT) -ginkgo.focus="\[NFD\]"
 
 push:
 	$(IMAGE_PUSH_CMD) $(IMAGE_TAG)
