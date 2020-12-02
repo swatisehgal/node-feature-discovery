@@ -21,24 +21,22 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/davecgh/go-spew/spew"
-
 	v1 "k8s.io/api/core/v1"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 )
 
 type PodResourcesScanner struct {
-	args              Args
+	namespace         string
 	podResourceClient podresourcesapi.PodResourcesListerClient
 }
 
-func NewPodResourcesScanner(args Args, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesScanner, error) {
+func NewPodResourcesScanner(namespace string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesScanner, error) {
 	resourcemonitorInstance := &PodResourcesScanner{
-		args:              args,
+		namespace:         namespace,
 		podResourceClient: podResourceClient,
 	}
-	if resourcemonitorInstance.args.Namespace != "" {
-		log.Printf("watching namespace %q", resourcemonitorInstance.args.Namespace)
+	if resourcemonitorInstance.namespace != "" {
+		log.Printf("watching namespace %q", resourcemonitorInstance.namespace)
 	} else {
 		log.Printf("watching all namespaces")
 	}
@@ -48,11 +46,11 @@ func NewPodResourcesScanner(args Args, podResourceClient podresourcesapi.PodReso
 
 // isWatchable tells if the the given namespace should be watched.
 func (resMon *PodResourcesScanner) isWatchable(podNamespace string) bool {
-	if resMon.args.Namespace == "" {
+	if resMon.namespace == "" {
 		return true
 	}
 	//TODO:  add an explicit check for guaranteed pods
-	return resMon.args.Namespace == podNamespace
+	return resMon.namespace == podNamespace
 }
 
 // Scan gathers all the PodResources from the system, using the podresources API client.
@@ -70,7 +68,6 @@ func (resMon *PodResourcesScanner) Scan() ([]PodResources, error) {
 
 	for _, podResource := range resp.GetPodResources() {
 		if !resMon.isWatchable(podResource.GetNamespace()) {
-			log.Printf("SKIP pod %q\n", podResource.Name)
 			continue
 		}
 
@@ -80,19 +77,22 @@ func (resMon *PodResourcesScanner) Scan() ([]PodResources, error) {
 		}
 
 		for _, container := range podResource.GetContainers() {
-			var resCPUs []string
-			for _, cpuID := range container.GetCpuIds() {
-				resCPUs = append(resCPUs, fmt.Sprintf("%d", cpuID))
-			}
-
 			contRes := ContainerResources{
 				Name: container.Name,
-				Resources: []ResourceInfo{
+			}
+
+			cpuIDs := container.GetCpuIds()
+			if len(cpuIDs) > 0 {
+				var resCPUs []string
+				for _, cpuID := range container.GetCpuIds() {
+					resCPUs = append(resCPUs, fmt.Sprintf("%d", cpuID))
+				}
+				contRes.Resources = []ResourceInfo{
 					{
 						Name: v1.ResourceCPU,
 						Data: resCPUs,
 					},
-				},
+				}
 			}
 
 			for _, device := range container.GetDevices() {
@@ -102,8 +102,14 @@ func (resMon *PodResourcesScanner) Scan() ([]PodResources, error) {
 				})
 			}
 
-			log.Printf("pod %q container %q contData=%s\n", podResource.GetName(), container.Name, spew.Sdump(contRes))
+			if len(contRes.Resources) == 0 {
+				continue
+			}
 			podRes.Containers = append(podRes.Containers, contRes)
+		}
+
+		if len(podRes.Containers) == 0 {
+			continue
 		}
 
 		podResData = append(podResData, podRes)

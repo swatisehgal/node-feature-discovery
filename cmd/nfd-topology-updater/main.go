@@ -59,7 +59,7 @@ func main() {
 	}
 	var resScan resourcemonitor.ResourcesScanner
 
-	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs, podResClient)
+	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs.Namespace, podResClient)
 	if err != nil {
 		log.Fatalf("Failed to initialize ResourceMonitor instance: %v", err)
 	}
