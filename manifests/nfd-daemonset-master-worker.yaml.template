@@ -17,14 +17,19 @@ kind: ClusterRole
 metadata:
   name: nfd-master
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
-  - patch
-  - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    # when using command line flag --resource-labels to create extended resources
+    # you will need to uncomment "- nodes/status"
+    # - nodes/status
+    verbs:
+      - get
+      - patch
+      - update
+      # List only needed for --prune
+      - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -35,9 +40,9 @@ roleRef:
   kind: ClusterRole
   name: nfd-master
 subjects:
-- kind: ServiceAccount
-  name: nfd-master
-  namespace: node-feature-discovery
+  - kind: ServiceAccount
+    name: nfd-master
+    namespace: node-feature-discovery
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -58,10 +63,10 @@ spec:
       serviceAccount: nfd-master
       containers:
         - env:
-          - name: NODE_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.nodeName
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           image: gcr.io/k8s-staging-nfd/node-feature-discovery:master
           name: nfd-master
           securityContext:
@@ -73,10 +78,10 @@ spec:
           command:
             - "nfd-master"
         - env:
-          - name: NODE_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.nodeName
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           image: gcr.io/k8s-staging-nfd/node-feature-discovery:master
           name: nfd-worker
           securityContext:
@@ -98,10 +103,13 @@ spec:
               readOnly: true
             - name: host-sys
               mountPath: "/host-sys"
+              readOnly: true
             - name: source-d
               mountPath: "/etc/kubernetes/node-feature-discovery/source.d/"
+              readOnly: true
             - name: features-d
               mountPath: "/etc/kubernetes/node-feature-discovery/features.d/"
+              readOnly: true
       volumes:
         - name: host-boot
           hostPath:
