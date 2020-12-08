@@ -23,14 +23,16 @@ import (
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+	topologyclientset "github.com/swatisehgal/topologyapi/pkg/generated/clientset/versioned"
 
-	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
 	"k8s.io/kubernetes/test/e2e/framework"
-	e2elog "k8s.io/kubernetes/test/e2e/framework/log"
+	e2ekubelet "k8s.io/kubernetes/test/e2e/framework/kubelet"
 	e2enetwork "k8s.io/kubernetes/test/e2e/framework/network"
 	e2epod "k8s.io/kubernetes/test/e2e/framework/pod"
 
@@ -38,82 +40,102 @@ import (
 )
 
 var _ = framework.KubeDescribe("[NFD] Node topology updater", func() {
+	var (
+		extClient           *extclient.Clientset
+		topologyClient      *topologyclientset.Clientset
+		crd                 *apiextensionsv1.CustomResourceDefinition
+		topologyUpdaterNode *v1.Node
+		kubeletConfig       *kubeletconfig.KubeletConfiguration
+	)
+
 	f := framework.NewDefaultFramework("node-topology-updater")
 
+	ginkgo.BeforeEach(func() {
+		var err error
+
+		if extClient == nil {
+			extClient, err = extclient.NewForConfig(f.ClientConfig())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+
+		if topologyClient == nil {
+			topologyClient, err = topologyclientset.NewForConfig(f.ClientConfig())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+
+		ginkgo.By("Creating the node resource topologies CRD")
+		crd = testutils.NewNodeResourceTopologies()
+		_, err = extClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		err = testutils.ConfigureRBAC(f.ClientSet, f.Namespace.Name)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		image := fmt.Sprintf("%s:%s", *dockerRepo, *dockerTag)
+		f.PodClient().CreateSync(testutils.NFDMasterPod(image, false))
+
+		// Create nfd-master service
+		masterService, err := testutils.CreateService(f.ClientSet, f.Namespace.Name)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for the nfd-master service to be up")
+		gomega.Expect(e2enetwork.WaitForService(f.ClientSet, f.Namespace.Name, masterService.Name, true, time.Second, 10*time.Second)).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Creating nfd-topology-updater daemonset")
+		topologyUpdaterDaemonSet := testutils.NFDTopologyUpdaterDaemonSet(fmt.Sprintf("%s:%s", *dockerRepo, *dockerTag), []string{})
+		topologyUpdaterDaemonSet, err = f.ClientSet.AppsV1().DaemonSets(f.Namespace.Name).Create(context.TODO(), topologyUpdaterDaemonSet, metav1.CreateOptions{})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		ginkgo.By("Waiting for daemonset pods to be ready")
+		gomega.Expect(e2epod.WaitForPodsReady(f.ClientSet, f.Namespace.Name, topologyUpdaterDaemonSet.Spec.Template.Labels["name"], 5)).NotTo(gomega.HaveOccurred())
+
+		label := labels.SelectorFromSet(map[string]string{"name": topologyUpdaterDaemonSet.Spec.Template.Labels["name"]})
+		pods, err := f.ClientSet.CoreV1().Pods(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{LabelSelector: label.String()})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(pods.Items).ToNot(gomega.BeEmpty())
+
+		topologyUpdaterNode, err = f.ClientSet.CoreV1().Nodes().Get(context.TODO(), pods.Items[0].Spec.NodeName, metav1.GetOptions{})
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+		kubeletConfig, err = e2ekubelet.GetCurrentKubeletConfig(topologyUpdaterNode.Name, "", true)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	})
+
 	ginkgo.Context("with single nfd-master pod", func() {
-		var (
-			extClient                *extclient.Clientset
-			crd                      *apiextensionsv1.CustomResourceDefinition
-			masterPod                *v1.Pod
-			masterService            *v1.Service
-			topologyUpdaterDaemonSet *appsv1.DaemonSet
-		)
+		ginkgo.It("should fill the node resource topologies CR with the data", func() {
+			gomega.Eventually(func() bool {
+				// TODO: we should avoid to use hardcoded namespace name
+				nodeTopology, err := topologyClient.TopologyV1alpha1().NodeResourceTopologies("default").Get(context.TODO(), topologyUpdaterNode.Name, metav1.GetOptions{})
+				if err != nil {
+					framework.Logf("failed to get the node topology resource: %v", err)
+					return false
+				}
 
-		ginkgo.BeforeEach(func() {
-			var err error
+				if nodeTopology == nil || len(nodeTopology.TopologyPolicy) == 0 {
+					framework.Logf("failed to get topology policy from the node topology resource")
+					return false
+				}
 
-			if extClient == nil {
-				extClient, err = extclient.NewForConfig(f.ClientConfig())
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			}
+				if nodeTopology.TopologyPolicy[0] != (*kubeletConfig).TopologyManagerPolicy {
+					return false
+				}
 
-			ginkgo.By("Creating the node resource topologies CRD")
-			crd = testutils.NewNodeResourceTopologies()
-			_, err = extClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				// TODO: add more checks like checking distances, NUMA node and allocated CPUs
 
-			err = testutils.ConfigureRBAC(f.ClientSet, f.Namespace.Name)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			image := fmt.Sprintf("%s:%s", *dockerRepo, *dockerTag)
-			masterPod = f.PodClient().CreateSync(testutils.NFDMasterPod(image, false))
-
-			// Create nfd-master service
-			masterService, err = testutils.CreateService(f.ClientSet, f.Namespace.Name)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			ginkgo.By("Waiting for the nfd-master service to be up")
-			gomega.Expect(e2enetwork.WaitForService(f.ClientSet, f.Namespace.Name, masterService.Name, true, time.Second, 10*time.Second)).NotTo(gomega.HaveOccurred())
-
-			ginkgo.By("Creating nfd-topology-updater daemonset")
-			topologyUpdaterDaemonSet = testutils.NFDTopologyUpdaterDaemonSet(fmt.Sprintf("%s:%s", *dockerRepo, *dockerTag), []string{})
-			topologyUpdaterDaemonSet, err = f.ClientSet.AppsV1().DaemonSets(f.Namespace.Name).Create(context.TODO(), topologyUpdaterDaemonSet, metav1.CreateOptions{})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			ginkgo.By("Waiting for daemonset pods to be ready")
-			gomega.Expect(e2epod.WaitForPodsReady(f.ClientSet, f.Namespace.Name, topologyUpdaterDaemonSet.Spec.Template.Labels["name"], 5)).NotTo(gomega.HaveOccurred())
+				return true
+			}, time.Minute, 5*time.Second).Should(gomega.BeTrue())
 		})
+	})
 
-		ginkgo.FIt("should fill the node resource topologies CR with the data", func() {
+	ginkgo.JustAfterEach(func() {
+		err := testutils.DeconfigureRBAC(f.ClientSet, f.Namespace.Name)
+		if err != nil {
+			framework.Logf("failed to delete RBAC resources: %v", err)
+		}
 
-		})
-
-		ginkgo.AfterEach(func() {
-			// Delete topology updater daemon set
-			err := f.ClientSet.AppsV1().DaemonSets(f.Namespace.Name).Delete(context.TODO(), topologyUpdaterDaemonSet.Name, metav1.DeleteOptions{})
-			if err != nil {
-				e2elog.Logf("failed to delete node topology updater daemon set: %v", err)
-			}
-
-			err = f.ClientSet.CoreV1().Services(f.Namespace.Name).Delete(context.TODO(), masterService.Name, metav1.DeleteOptions{})
-			if err != nil {
-				e2elog.Logf("failed to delete master service: %v", err)
-			}
-
-			err = f.ClientSet.CoreV1().Pods(f.Namespace.Name).Delete(context.TODO(), masterPod.Name, metav1.DeleteOptions{})
-			if err != nil {
-				e2elog.Logf("failed to delete master pod: %v", err)
-			}
-
-			err = testutils.DeconfigureRBAC(f.ClientSet, f.Namespace.Name)
-			if err != nil {
-				e2elog.Logf("failed to delete RBAC resources: %v", err)
-			}
-
-			err = extClient.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.Name, metav1.DeleteOptions{})
-			if err != nil {
-				e2elog.Logf("failed to delete node resources topologies CRD: %v", err)
-			}
-		})
+		err = extClient.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crd.Name, metav1.DeleteOptions{})
+		if err != nil {
+			framework.Logf("failed to delete node resources topologies CRD: %v", err)
+		}
 	})
 })

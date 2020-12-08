@@ -22,11 +22,14 @@ require (
 	google.golang.org/genproto v0.0.0-20201116205149-79184cff4dfe // indirect
 	google.golang.org/grpc v1.27.1
 	google.golang.org/protobuf v1.25.0
+	gopkg.in/yaml.v2 v2.2.8
 	k8s.io/api v0.20.0-beta.2
+	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.20.0-beta.2
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/kubelet v0.0.0
 	k8s.io/kubernetes v1.19.4
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/yaml v1.2.0
 )
 
