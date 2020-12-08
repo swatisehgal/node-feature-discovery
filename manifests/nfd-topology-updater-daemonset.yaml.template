@@ -50,7 +50,7 @@ spec:
             - name: kubelet-podresources-sock
               mountPath: /podresources/kubelet.sock
             - name: host-sysfs
-              mountPath: /host-sys
+              mountPath: /host/sys
 ## Enable TLS authentication (2/3)
 #            - name: nfd-ca-cert
 #              mountPath: "/etc/kubernetes/node-feature-discovery/trust"

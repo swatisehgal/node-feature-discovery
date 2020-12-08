@@ -32,7 +32,7 @@ func TestArgsParse(t *testing.T) {
 				So(args.NoPublish, ShouldBeTrue)
 				So(args.Oneshot, ShouldBeTrue)
 				So(finderArgs.SleepInterval, ShouldEqual, 60*time.Second)
-				So(finderArgs.SysfsRoot, ShouldEqual, "/host-sys")
+				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
 				So(err, ShouldBeNil)
@@ -46,7 +46,7 @@ func TestArgsParse(t *testing.T) {
 				So(args.NoPublish, ShouldBeFalse)
 				So(args.Oneshot, ShouldBeFalse)
 				So(finderArgs.SleepInterval, ShouldEqual, 30*time.Second)
-				So(finderArgs.SysfsRoot, ShouldEqual, "/host-sys")
+				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/path/testconfig.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
 				So(err, ShouldBeNil)
@@ -60,20 +60,20 @@ func TestArgsParse(t *testing.T) {
 				So(args.NoPublish, ShouldBeFalse)
 				So(args.Oneshot, ShouldBeFalse)
 				So(finderArgs.SleepInterval, ShouldEqual, 30*time.Second)
-				So(finderArgs.SysfsRoot, ShouldEqual, "/host-sys")
+				So(finderArgs.SysfsRoot, ShouldEqual, "/host")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/path/testkubelet.sock")
 				So(err, ShouldBeNil)
 			})
 		})
 		Convey("When valid args are specified for--sysfs and --sleep-inteval is specified", func() {
-			args, finderArgs, err := argsParse([]string{"--sysfs=/host-sysfs", "--sleep-interval=30s"})
+			args, finderArgs, err := argsParse([]string{"--sysfs=/host/sysfs-root", "--sleep-interval=30s"})
 
 			Convey("args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeFalse)
 				So(args.Oneshot, ShouldBeFalse)
 				So(finderArgs.SleepInterval, ShouldEqual, 30*time.Second)
-				So(finderArgs.SysfsRoot, ShouldEqual, "/host-sysfs")
+				So(finderArgs.SysfsRoot, ShouldEqual, "/host/sysfs-root")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/podresources/config.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/podresources/kubelet.sock")
 				So(err, ShouldBeNil)
@@ -81,7 +81,7 @@ func TestArgsParse(t *testing.T) {
 		})
 
 		Convey("When All valid args are specified", func() {
-			args, finderArgs, err := argsParse([]string{"--no-publish", "--sleep-interval=30s", "--sysfs=/host-sysfs", "--kubelet-config-file=/path/testconfig.yaml", "--podresources-socket=/path/testkubelet.sock", "--ca-file=ca", "--cert-file=crt", "--key-file=key"})
+			args, finderArgs, err := argsParse([]string{"--no-publish", "--sleep-interval=30s", "--sysfs=/host/sysfs-root", "--kubelet-config-file=/path/testconfig.yaml", "--podresources-socket=/path/testkubelet.sock", "--ca-file=ca", "--cert-file=crt", "--key-file=key"})
 
 			Convey("--no-publish is set and args.sources is set to appropriate values", func() {
 				So(args.NoPublish, ShouldBeTrue)
@@ -89,7 +89,7 @@ func TestArgsParse(t *testing.T) {
 				So(args.CertFile, ShouldEqual, "crt")
 				So(args.KeyFile, ShouldEqual, "key")
 				So(finderArgs.SleepInterval, ShouldEqual, 30*time.Second)
-				So(finderArgs.SysfsRoot, ShouldEqual, "/host-sysfs")
+				So(finderArgs.SysfsRoot, ShouldEqual, "/host/sysfs-root")
 				So(finderArgs.KubeletConfigFile, ShouldEqual, "/path/testconfig.yaml")
 				So(finderArgs.PodResourceSocketPath, ShouldEqual, "/path/testkubelet.sock")
 				So(err, ShouldBeNil)

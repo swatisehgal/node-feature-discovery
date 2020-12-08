@@ -151,7 +151,7 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
                                   sleep). [Default: 60s]
   --watch-namespace=<namespace>   Namespace to watch pods for. Use "" for all namespaces.
   --sysfs=<mountpoint>            Mount point of the sysfs.
-                                  [Default: /host-sys]
+                                  [Default: /host]
   --kubelet-config-file=<path>    Kubelet config file path.
                                   [Default: /podresources/config.yaml]
   --podresources-socket=<path>    Pod Resource Socket path to use.
