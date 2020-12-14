@@ -64,8 +64,7 @@ var _ = framework.KubeDescribe("[NFD] Node topology updater", func() {
 		}
 
 		ginkgo.By("Creating the node resource topologies CRD")
-		crd = testutils.NewNodeResourceTopologies()
-		_, err = extClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), crd, metav1.CreateOptions{})
+		crd, err = testutils.CreateNodeResourceTopologies(extClient)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 		err = testutils.ConfigureRBAC(f.ClientSet, f.Namespace.Name)

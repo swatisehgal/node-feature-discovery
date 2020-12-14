@@ -17,14 +17,20 @@ limitations under the License.
 package utils
 
 import (
+	"context"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	extclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func NewNodeResourceTopologies() *apiextensionsv1.CustomResourceDefinition {
+const nodeResourceTopologiesName = "noderesourcetopologies.topology.node.k8s.io"
+
+func newNodeResourceTopologies() *apiextensionsv1.CustomResourceDefinition {
 	return &apiextensionsv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "noderesourcetopologies.topology.node.k8s.io",
+			Name: nodeResourceTopologiesName,
 			Annotations: map[string]string{
 				"api-approved.kubernetes.io": "https://github.com/kubernetes/enhancements/pull/1870",
 			},
@@ -64,4 +70,22 @@ func NewNodeResourceTopologies() *apiextensionsv1.CustomResourceDefinition {
 			},
 		},
 	}
+}
+
+func CreateNodeResourceTopologies(extClient extclient.Interface) (*apiextensionsv1.CustomResourceDefinition, error) {
+	crd, err := extClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), nodeResourceTopologiesName, metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, err
+	}
+
+	if err == nil {
+		return crd, nil
+	}
+
+	crd, err = extClient.ApiextensionsV1().CustomResourceDefinitions().Create(context.TODO(), newNodeResourceTopologies(), metav1.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return crd, nil
 }
