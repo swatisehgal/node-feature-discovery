@@ -26,9 +26,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
 
-	"github.com/fromanirh/topologyinfo/cpus"
-	"github.com/fromanirh/topologyinfo/numa"
-	"github.com/fromanirh/topologyinfo/numa/distances"
+	"github.com/jaypipes/ghw"
+
 	topologyv1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
 )
 
@@ -41,9 +40,7 @@ type nodeResources struct {
 	perNUMACapacity map[int]map[v1.ResourceName]int64
 	// mapping: resourceName -> resourceID -> nodeID
 	resourceID2NUMAID map[string]map[string]int
-	cpuInfo           *cpus.CPUs
-	numaInfo          *numa.Nodes
-	numaDists         *distances.Distances
+	topo              *ghw.TopologyInfo
 }
 
 type resourceData struct {
@@ -51,20 +48,10 @@ type resourceData struct {
 	capacity    int64
 }
 
-func NewResourcesAggregator(sysfsPath string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesAggregator, error) {
+func NewResourcesAggregator(sysfsRoot string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesAggregator, error) {
 	var err error
 
-	cpuInfo, err := cpus.NewCPUs(sysfsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	nodes, err := numa.NewNodesFromSysFS(sysfsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	dists, err := distances.NewDistancesFromSysfs(sysfsPath)
+	topo, err := ghw.Topology(ghw.WithChroot(sysfsRoot))
 	if err != nil {
 		return nil, err
 	}
@@ -78,16 +65,14 @@ func NewResourcesAggregator(sysfsPath string, podResourceClient podresourcesapi.
 		return nil, fmt.Errorf("Can't receive response: %v.Get(_) = _, %v", podResourceClient, err)
 	}
 
-	return NewResourcesAggregatorFromData(cpuInfo, nodes, dists, resp), nil
+	return NewResourcesAggregatorFromData(topo, resp), nil
 }
 
-func NewResourcesAggregatorFromData(cpuInfo *cpus.CPUs, nodes numa.Nodes, dists *distances.Distances, resp *podresourcesapi.AllocatableResourcesResponse) ResourcesAggregator {
-	allDevs := GetContainerDevicesFromAllocatableResources(resp, cpuInfo)
+func NewResourcesAggregatorFromData(topo *ghw.TopologyInfo, resp *podresourcesapi.AllocatableResourcesResponse) ResourcesAggregator {
+	allDevs := GetContainerDevicesFromAllocatableResources(resp, topo)
 	return &nodeResources{
-		cpuInfo:           cpuInfo,
-		numaInfo:          &nodes,
-		numaDists:         dists,
-		resourceID2NUMAID: makeResourceMap(len(nodes.Online), allDevs),
+		topo:              topo,
+		resourceID2NUMAID: makeResourceMap(len(topo.Nodes), allDevs),
 		perNUMACapacity:   MakeNodeCapacity(allDevs),
 	}
 }
@@ -95,10 +80,10 @@ func NewResourcesAggregatorFromData(cpuInfo *cpus.CPUs, nodes numa.Nodes, dists 
 // Aggregate provides the mapping (numa zone name) -> Zone from the given PodResources.
 func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[string]*topologyv1alpha1.Zone {
 	perNuma := make(map[int]map[v1.ResourceName]*resourceData)
-	for nodeNum, nodeRes := range noderesourceData.perNUMACapacity {
-		perNuma[nodeNum] = make(map[v1.ResourceName]*resourceData)
+	for nodeID, nodeRes := range noderesourceData.perNUMACapacity {
+		perNuma[nodeID] = make(map[v1.ResourceName]*resourceData)
 		for resName, resCap := range nodeRes {
-			perNuma[nodeNum][resName] = &resourceData{
+			perNuma[nodeID][resName] = &resourceData{
 				capacity:    resCap,
 				allocatable: resCap,
 			}
@@ -115,15 +100,15 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 
 	zones := make(map[string]*topologyv1alpha1.Zone)
 
-	for nodeNum, resList := range perNuma {
+	for nodeID, resList := range perNuma {
 		zone := &topologyv1alpha1.Zone{
 			Type:      "Node",
 			Resources: make(topologyv1alpha1.ResourceInfoMap),
 		}
 
-		costs, err := makeCostsPerNumaNode(noderesourceData.numaInfo, noderesourceData.numaDists, nodeNum)
+		costs, err := makeCostsPerNumaNode(noderesourceData.topo.Nodes, nodeID)
 		if err != nil {
-			log.Printf("cannot find costs for NUMA node %d: %v", nodeNum, err)
+			log.Printf("cannot find costs for NUMA node %d: %v", nodeID, err)
 		} else {
 			zone.Costs = costs
 		}
@@ -136,7 +121,7 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 				Capacity:    capacityQty.String(),
 			}
 		}
-		zones[makeZoneName(nodeNum)] = zone
+		zones[makeZoneName(nodeID)] = zone
 	}
 	return zones
 }
@@ -145,15 +130,17 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) map[
 // This is helpful because cpuIDs are not represented as ContainerDevices, but with a different format;
 // Having a consistent representation of all the resources as ContainerDevices makes it simpler for
 // the code to consume them.
-func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, cpuInfo *cpus.CPUs) []*podresourcesapi.ContainerDevices {
+func GetContainerDevicesFromAllocatableResources(availRes *podresourcesapi.AllocatableResourcesResponse, topo *ghw.TopologyInfo) []*podresourcesapi.ContainerDevices {
 	var contDevs []*podresourcesapi.ContainerDevices
 	for _, dev := range availRes.GetDevices() {
 		contDevs = append(contDevs, dev)
 	}
 
+	cpuIDToNodeIDMap := MakeLogicalCoreIDToNodeIDMap(topo)
+
 	cpusPerNuma := make(map[int][]string)
 	for _, cpuID := range availRes.GetCpuIds() {
-		nodeID, ok := cpuInfo.GetNodeIDForCPU(int(cpuID))
+		nodeID, ok := cpuIDToNodeIDMap[int(cpuID)]
 		if !ok {
 			log.Printf("cannot find the NUMA node for CPU %d", cpuID)
 			continue
@@ -189,18 +176,18 @@ func (noderesourceData *nodeResources) updateAllocatable(numaData map[int]map[v1
 			log.Printf("unknown resource %q", ri.Name)
 			continue
 		}
-		nodeNum, ok := resMap[resID]
+		nodeID, ok := resMap[resID]
 		if !ok {
 			log.Printf("unknown resource %q: %q", resName, resID)
 			continue
 		}
-		numaData[nodeNum][ri.Name].allocatable--
+		numaData[nodeID][ri.Name].allocatable--
 	}
 }
 
 // makeZoneName returns the canonical name of a NUMA zone from its ID.
-func makeZoneName(numaID int) string {
-	return fmt.Sprintf("node-%d", numaID)
+func makeZoneName(nodeID int) string {
+	return fmt.Sprintf("node-%d", nodeID)
 }
 
 // MakeNodeCapacity computes the node capacity as mapping (NUMA node ID) -> Resource -> Capacity (amount, int).
@@ -212,17 +199,28 @@ func MakeNodeCapacity(devices []*podresourcesapi.ContainerDevices) map[int]map[v
 	for _, device := range devices {
 		resourceName := device.GetResourceName()
 		for _, node := range device.GetTopology().GetNodes() {
-			nodeNum := int(node.GetID())
-			nodeRes, ok := perNUMACapacity[nodeNum]
+			nodeID := int(node.GetID())
+			nodeRes, ok := perNUMACapacity[nodeID]
 			if !ok {
 				nodeRes = make(map[v1.ResourceName]int64)
 			}
 			nodeRes[v1.ResourceName(resourceName)] += int64(len(device.GetDeviceIds()))
-			perNUMACapacity[nodeNum] = nodeRes
+			perNUMACapacity[nodeID] = nodeRes
 		}
 	}
 	return perNUMACapacity
+}
 
+func MakeLogicalCoreIDToNodeIDMap(topo *ghw.TopologyInfo) map[int]int {
+	core2node := make(map[int]int)
+	for _, node := range topo.Nodes {
+		for _, core := range node.Cores {
+			for _, procID := range core.LogicalProcessors {
+				core2node[procID] = node.ID
+			}
+		}
+	}
+	return core2node
 }
 
 // makeResourceMap creates the mapping (resource name) -> (device ID) -> (NUMA node ID) from the given slice of ContainerDevices.
@@ -237,9 +235,9 @@ func makeResourceMap(numaNodes int, devices []*podresourcesapi.ContainerDevices)
 			resourceMap[resourceName] = make(map[string]int)
 		}
 		for _, node := range device.GetTopology().GetNodes() {
-			nodeNuma := int(node.GetID())
+			nodeID := int(node.GetID())
 			for _, deviceID := range device.GetDeviceIds() {
-				resourceMap[resourceName][deviceID] = nodeNuma
+				resourceMap[resourceName][deviceID] = nodeID
 			}
 		}
 	}
@@ -247,15 +245,24 @@ func makeResourceMap(numaNodes int, devices []*podresourcesapi.ContainerDevices)
 }
 
 // makeCostsPerNumaNode builds the cost map to reach all the known NUMA zones (mapping (numa zone) -> cost) starting from the given NUMA zone.
-func makeCostsPerNumaNode(numaInfo *numa.Nodes, numaDists *distances.Distances, numaIDSrc int) (map[string]int, error) {
+func makeCostsPerNumaNode(nodes []*ghw.TopologyNode, nodeIDSrc int) (map[string]int, error) {
+	nodeSrc := findNodeByID(nodes, nodeIDSrc)
+	if nodeSrc == nil {
+		return nil, fmt.Errorf("unknown node: %d", nodeIDSrc)
+	}
 	nodeCosts := make(map[string]int)
-	for _, numaIDDst := range numaInfo.Online {
-		dist, err := numaDists.BetweenNodes(numaIDSrc, numaIDDst)
-		if err != nil {
-			return nil, err
-		}
-
-		nodeCosts[makeZoneName(numaIDDst)] = dist
+	for nodeIDDst, dist := range nodeSrc.Distances {
+		// TODO: this assumes there are no holes (= no offline node) in the distance vector
+		nodeCosts[makeZoneName(nodeIDDst)] = dist
 	}
 	return nodeCosts, nil
+}
+
+func findNodeByID(nodes []*ghw.TopologyNode, nodeID int) *ghw.TopologyNode {
+	for _, node := range nodes {
+		if node.ID == nodeID {
+			return node
+		}
+	}
+	return nil
 }

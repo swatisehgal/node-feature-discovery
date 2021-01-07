@@ -5,10 +5,10 @@ go 1.14
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
-	github.com/fromanirh/topologyinfo v0.0.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.3
+	github.com/jaypipes/ghw v0.6.1
 	github.com/klauspost/cpuid v1.2.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
@@ -62,3 +62,5 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.20.0-beta.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.0-beta.2
 )
+
+replace github.com/jaypipes/ghw v0.6.1 => github.com/fromanirh/ghw v0.0.3

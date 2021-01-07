@@ -102,7 +102,7 @@ spec:
               mountPath: "/host-etc/os-release"
               readOnly: true
             - name: host-sys
-              mountPath: "/host-sys"
+              mountPath: "/host/sys"
               readOnly: true
             - name: source-d
               mountPath: "/etc/kubernetes/node-feature-discovery/source.d/"
