@@ -8,7 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.3
-	github.com/jaypipes/ghw v0.6.1
+	github.com/jaypipes/ghw v0.6.2-0.20210115144335-efbe6fd4efca
 	github.com/klauspost/cpuid v1.2.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
@@ -65,5 +65,3 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.20.0-beta.2
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.0-beta.2
 )
-
-replace github.com/jaypipes/ghw v0.6.1 => github.com/fromanirh/ghw v0.0.3
