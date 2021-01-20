@@ -1,7 +1,7 @@
 ---
 title: "Worker Config Reference"
 layout: default
-sort: 4
+sort: 5
 published: false
 ---
 
