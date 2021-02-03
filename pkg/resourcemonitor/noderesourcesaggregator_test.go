@@ -25,8 +25,9 @@ import (
 
 	cmp "github.com/google/go-cmp/cmp"
 	. "github.com/smartystreets/goconvey/convey"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
-	topov1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	topologyv1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	v1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 )
 
@@ -130,42 +131,61 @@ func TestResourcesAggregator(t *testing.T) {
 		resAggr = NewResourcesAggregatorFromData(&fakeTopo, availRes)
 
 		Convey("When aggregating resources", func() {
-			expected := map[string]*topov1alpha1.Zone{
-				"node-0": &topov1alpha1.Zone{
+			expected := topologyv1alpha1.ZoneList{
+				topologyv1alpha1.Zone{
+					Name: "node-0",
 					Type: "Node",
-					Costs: map[string]int{
-						"node-0": 10,
-						"node-1": 20,
-					},
-					Resources: topov1alpha1.ResourceInfoMap{
-						"fake.io/net": topov1alpha1.ResourceInfo{
-							Allocatable: "4",
-							Capacity:    "4",
+					Costs: topologyv1alpha1.CostList{
+						topologyv1alpha1.CostInfo{
+							Name:  "node-0",
+							Value: 10,
 						},
-						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "12",
-							Capacity:    "12",
+						topologyv1alpha1.CostInfo{
+							Name:  "node-1",
+							Value: 20,
+						},
+					},
+					Resources: topologyv1alpha1.ResourceInfoList{
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/net",
+							Allocatable: intstr.FromString("4"),
+							Capacity:    intstr.FromString("4"),
+						},
+						topologyv1alpha1.ResourceInfo{
+							Name:        "cpu",
+							Allocatable: intstr.FromString("12"),
+							Capacity:    intstr.FromString("12"),
 						},
 					},
 				},
-				"node-1": &topov1alpha1.Zone{
+				topologyv1alpha1.Zone{
+					Name: "node-1",
 					Type: "Node",
-					Costs: map[string]int{
-						"node-0": 20,
-						"node-1": 10,
+					Costs: topologyv1alpha1.CostList{
+						topologyv1alpha1.CostInfo{
+							Name:  "node-0",
+							Value: 20,
+						},
+						topologyv1alpha1.CostInfo{
+							Name:  "node-1",
+							Value: 10,
+						},
 					},
-					Resources: topov1alpha1.ResourceInfoMap{
-						"fake.io/gpu": topov1alpha1.ResourceInfo{
-							Allocatable: "1",
-							Capacity:    "1",
+					Resources: topologyv1alpha1.ResourceInfoList{
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/gpu",
+							Allocatable: intstr.FromString("1"),
+							Capacity:    intstr.FromString("1"),
 						},
-						"fake.io/net": topov1alpha1.ResourceInfo{
-							Allocatable: "2",
-							Capacity:    "2",
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/net",
+							Allocatable: intstr.FromString("2"),
+							Capacity:    intstr.FromString("2"),
 						},
-						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "12",
-							Capacity:    "12",
+						topologyv1alpha1.ResourceInfo{
+							Name:        "cpu",
+							Allocatable: intstr.FromString("12"),
+							Capacity:    intstr.FromString("12"),
 						},
 					},
 				},
@@ -245,42 +265,61 @@ func TestResourcesAggregator(t *testing.T) {
 				},
 			}
 
-			expected := map[string]*topov1alpha1.Zone{
-				"node-0": &topov1alpha1.Zone{
+			expected := topologyv1alpha1.ZoneList{
+				topologyv1alpha1.Zone{
+					Name: "node-0",
 					Type: "Node",
-					Costs: map[string]int{
-						"node-0": 10,
-						"node-1": 20,
-					},
-					Resources: topov1alpha1.ResourceInfoMap{
-						"fake.io/net": topov1alpha1.ResourceInfo{
-							Allocatable: "1",
-							Capacity:    "1",
+					Costs: topologyv1alpha1.CostList{
+						topologyv1alpha1.CostInfo{
+							Name:  "node-0",
+							Value: 10,
 						},
-						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "12",
-							Capacity:    "12",
+						topologyv1alpha1.CostInfo{
+							Name:  "node-1",
+							Value: 20,
+						},
+					},
+					Resources: topologyv1alpha1.ResourceInfoList{
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/net",
+							Allocatable: intstr.FromString("1"),
+							Capacity:    intstr.FromString("1"),
+						},
+						topologyv1alpha1.ResourceInfo{
+							Name:        "cpu",
+							Allocatable: intstr.FromString("12"),
+							Capacity:    intstr.FromString("12"),
 						},
 					},
 				},
-				"node-1": &topov1alpha1.Zone{
+				topologyv1alpha1.Zone{
+					Name: "node-1",
 					Type: "Node",
-					Costs: map[string]int{
-						"node-0": 20,
-						"node-1": 10,
+					Costs: topologyv1alpha1.CostList{
+						topologyv1alpha1.CostInfo{
+							Name:  "node-0",
+							Value: 20,
+						},
+						topologyv1alpha1.CostInfo{
+							Name:  "node-1",
+							Value: 10,
+						},
 					},
-					Resources: topov1alpha1.ResourceInfoMap{
-						"fake.io/gpu": topov1alpha1.ResourceInfo{
-							Allocatable: "1",
-							Capacity:    "1",
+					Resources: topologyv1alpha1.ResourceInfoList{
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/gpu",
+							Allocatable: intstr.FromString("1"),
+							Capacity:    intstr.FromString("1"),
 						},
-						"fake.io/net": topov1alpha1.ResourceInfo{
-							Allocatable: "0",
-							Capacity:    "1",
+						topologyv1alpha1.ResourceInfo{
+							Name:        "fake.io/net",
+							Allocatable: intstr.FromString("0"),
+							Capacity:    intstr.FromString("1"),
 						},
-						"cpu": topov1alpha1.ResourceInfo{
-							Allocatable: "10",
-							Capacity:    "12",
+						topologyv1alpha1.ResourceInfo{
+							Name:        "cpu",
+							Allocatable: intstr.FromString("10"),
+							Capacity:    intstr.FromString("12"),
 						},
 					},
 				},

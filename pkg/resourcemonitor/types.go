@@ -21,7 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	topologyv1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	topologyv1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 )
 
 type Args struct {
@@ -53,5 +53,5 @@ type ResourcesScanner interface {
 }
 
 type ResourcesAggregator interface {
-	Aggregate(podResData []PodResources) map[string]*topologyv1alpha1.Zone
+	Aggregate(podResData []PodResources) []topologyv1alpha1.Zone
 }

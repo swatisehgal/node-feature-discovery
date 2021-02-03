@@ -25,7 +25,7 @@ import (
 	"os"
 	"time"
 
-	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -51,7 +51,7 @@ type Args struct {
 }
 
 type NfdTopologyUpdater interface {
-	Update(map[string]*v1alpha1.Zone) error
+	Update(v1alpha1.ZoneList) error
 }
 
 type nfdTopologyUpdater struct {
@@ -86,7 +86,7 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 
 // Run nfdTopologyUpdater client. Returns if a fatal error is encountered, or, after
 // one request if OneShot is set to 'true' in the worker args.
-func (w *nfdTopologyUpdater) Update(zones map[string]*v1alpha1.Zone) error {
+func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
 	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
 	stdoutLogger.Printf("NodeName: '%s'", nodeName)
 	stdoutLogger.Printf("Updating now received Zone: '%s'", DumpObject(zones))
@@ -172,31 +172,33 @@ func (w *nfdTopologyUpdater) disconnect() {
 
 // advertiseNodeTopology advertises the topology CRD to a Kubernetes node
 // via the NFD server.
-func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo map[string]*v1alpha1.Zone, tmPolicy string) error {
+func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneList, tmPolicy string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	zones := make(map[string]*pb.Zone)
-	for zoneName, zone := range zoneInfo {
-		resInfo := make(map[string]*pb.ResourceInfo)
-		for resourceName, info := range zone.Resources {
-			resInfo[resourceName] = &pb.ResourceInfo{
-				Allocatable: info.Allocatable,
-				Capacity:    info.Capacity,
-			}
+	zones := make([]*pb.Zone, 0)
+	for _, zone := range zoneInfo {
+		resInfo := make([]*pb.ResourceInfo, 0)
+		for _, info := range zone.Resources {
+			resInfo = append(resInfo, &pb.ResourceInfo{
+				Name:        info.Name,
+				Allocatable: info.Allocatable.String(),
+				Capacity:    info.Capacity.String(),
+			})
 		}
 
-		zones[zoneName] = &pb.Zone{
+		zones = append(zones, &pb.Zone{
+			Name:      zone.Name,
 			Type:      zone.Type,
 			Resources: resInfo,
 			Costs:     updateMap(zone.Costs),
-		}
+		})
 	}
 
 	topologyReq := &pb.NodeTopologyRequest{
-		Zones:          zones,
-		NfdVersion:     version.Get(),
-		NodeName:       nodeName,
-		TopologyPolicy: []string{tmPolicy},
+		Zones:            zones,
+		NfdVersion:       version.Get(),
+		NodeName:         nodeName,
+		TopologyPolicies: []string{tmPolicy},
 	}
 	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", DumpObject(topologyReq))
 
@@ -208,11 +210,13 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo map[string]*v1
 
 	return nil
 }
-
-func updateMap(data map[string]int) map[string]int32 {
-	ret := make(map[string]int32)
-	for key, value := range data {
-		ret[key] = int32(value)
+func updateMap(data []v1alpha1.CostInfo) []*pb.CostInfo {
+	ret := make([]*pb.CostInfo, 0)
+	for _, cost := range data {
+		ret = append(ret, &pb.CostInfo{
+			Name:  cost.Name,
+			Value: int32(cost.Value),
+		})
 	}
 	return ret
 }

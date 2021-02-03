@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/docopt/docopt-go"
-	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
@@ -67,8 +67,8 @@ func main() {
 	// CAUTION: these resources are expected to change rarely - if ever.
 	//So we are intentionally do this once during the process lifecycle.
 	//TODO: Obtain node resources dynamically from the podresource API
-	zonesChannel := make(chan map[string]*v1alpha1.Zone)
-	var zones map[string]*v1alpha1.Zone
+	zonesChannel := make(chan v1alpha1.ZoneList)
+	var zones v1alpha1.ZoneList
 
 	resAggr, err := resourcemonitor.NewResourcesAggregator(resourcemonitorArgs.SysfsRoot, podResClient)
 	if err != nil {

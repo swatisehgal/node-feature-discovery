@@ -22,8 +22,9 @@ import (
 	"testing"
 	"time"
 
+	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	. "github.com/smartystreets/goconvey/convey"
-	v1alpha1 "github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	nfdmaster "sigs.k8s.io/node-feature-discovery/pkg/nfd-master"
 	u "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/test/data"
@@ -87,12 +88,20 @@ func TestNewTopologyUpdater(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	ctx := setupTest(nfdmaster.Args{})
-	resourceInfo := v1alpha1.ResourceInfoMap{"cpu": v1alpha1.ResourceInfo{Allocatable: "2", Capacity: "4"}}
-	z := &v1alpha1.Zone{
-		Type:      "Node",
-		Resources: resourceInfo,
+	resourceInfo := v1alpha1.ResourceInfoList{
+		v1alpha1.ResourceInfo{
+			Name:        "cpu",
+			Allocatable: intstr.FromString("2"),
+			Capacity:    intstr.FromString("4"),
+		},
 	}
-	zones := map[string]*v1alpha1.Zone{"node-0": z}
+	zones := v1alpha1.ZoneList{
+		v1alpha1.Zone{
+			Name:      "node-0",
+			Type:      "Node",
+			Resources: resourceInfo,
+		},
+	}
 	defer teardownTest(ctx)
 	Convey("When running nfd-topology-updater against nfd-master", t, func() {
 		Convey("When running as a Oneshot job with Zones", func() {
@@ -116,12 +125,20 @@ func TestRunTls(t *testing.T) {
 	defer teardownTest(ctx)
 	Convey("When running nfd-worker against nfd-master with mutual TLS auth enabled", t, func() {
 		Convey("When publishing CRDs obtained from Zones", func() {
-			resourceInfo := v1alpha1.ResourceInfoMap{"cpu": v1alpha1.ResourceInfo{Allocatable: "2", Capacity: "4"}}
-			z := &v1alpha1.Zone{
-				Type:      "Node",
-				Resources: resourceInfo,
+			resourceInfo := v1alpha1.ResourceInfoList{
+				v1alpha1.ResourceInfo{
+					Name:        "cpu",
+					Allocatable: intstr.FromString("2"),
+					Capacity:    intstr.FromString("4"),
+				},
 			}
-			zones := map[string]*v1alpha1.Zone{"node-0": z}
+			zones := v1alpha1.ZoneList{
+				v1alpha1.Zone{
+					Name:      "node-0",
+					Type:      "Node",
+					Resources: resourceInfo,
+				},
+			}
 			updaterArgs := u.Args{
 				CaFile:             data.FilePath("ca.crt"),
 				CertFile:           data.FilePath("nfd-test-topology-updater.crt"),
