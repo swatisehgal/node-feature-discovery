@@ -31,8 +31,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
-	topologyclientset "github.com/swatisehgal/topologyapi/pkg/generated/clientset/versioned"
+	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
+	topologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -76,7 +77,7 @@ type Annotations map[string]string
 
 type NodeTopologyCRD struct {
 	TopologyPolicy []string
-	Zones          map[string]*topologypb.Zone
+	Zones          []*topologypb.Zone
 }
 
 // Command line arguments
@@ -435,10 +436,10 @@ func (s *nodeTopologyServer) UpdateNodeTopology(c context.Context, r *topologypb
 			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("request authorization failed: cert valid for '%s', requested node name '%s'", cn, r.NodeName)
 		}
 	}
-	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v", r.NodeName, r.NfdVersion, r.TopologyPolicy, r.Zones)
+	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v, Request: %v", r.NodeName, r.NfdVersion, r.TopologyPolicies, r.Zones, spew.Sdump(r))
 
 	if !s.args.NoPublish {
-		err := s.updateCRD(r.NodeName, r.TopologyPolicy, r.Zones, "default")
+		err := s.updateCRD(r.NodeName, r.TopologyPolicies, r.Zones, "default")
 		if err != nil {
 			stderrLogger.Printf("failed to advertise labels: %s", err.Error())
 			return &topologypb.NodeTopologyResponse{}, err
@@ -574,41 +575,45 @@ func addAnnotations(n *api.Node, annotations map[string]string) {
 	}
 }
 
-func updateMap(input map[string]int32) map[string]int {
-	ret := make(map[string]int)
-
-	for str, data := range input {
-		ret[str] = int(data)
+func updateMap(data []*topologypb.CostInfo) []v1alpha1.CostInfo {
+	ret := make([]v1alpha1.CostInfo, 0)
+	for _, cost := range data {
+		ret = append(ret, v1alpha1.CostInfo{
+			Name:  cost.Name,
+			Value: int(cost.Value),
+		})
 	}
 	return ret
 }
 
-func modifyCRD(topoUpdaterZones map[string]*topologypb.Zone) map[string]v1alpha1.Zone {
+func modifyCRD(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
 
-	zones := make(map[string]v1alpha1.Zone)
-	for zoneName, zone := range topoUpdaterZones {
-		resInfo := make(map[string]v1alpha1.ResourceInfo)
-		for resourceName, info := range zone.Resources {
-			resInfo[resourceName] = v1alpha1.ResourceInfo{
-				Allocatable: info.Allocatable,
-				Capacity:    info.Capacity,
-			}
+	zones := make([]v1alpha1.Zone, 0)
+	for _, zone := range topoUpdaterZones {
+		resInfo := make([]v1alpha1.ResourceInfo, 0)
+		for _, info := range zone.Resources {
+			resInfo = append(resInfo, v1alpha1.ResourceInfo{
+				Name:        info.Name,
+				Allocatable: intstr.FromString(info.Allocatable),
+				Capacity:    intstr.FromString(info.Capacity),
+			})
 		}
 
-		zones[zoneName] = v1alpha1.Zone{
+		zones = append(zones, v1alpha1.Zone{
+			Name:      zone.Name,
 			Type:      zone.Type,
-			Parent:    zone.Parent,
 			Costs:     updateMap(zone.Costs),
 			Resources: resInfo,
-		}
+		})
 	}
 	return zones
 
 }
 
-func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoUpdaterZones map[string]*topologypb.Zone, namespace string) error {
-	log.Printf("Exporter Update called NodeResources is: %+v", topoUpdaterZones)
-	zones := modifyCRD(topoUpdaterZones)
+func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoUpdaterZones []*topologypb.Zone, namespace string) error {
+	var zones v1alpha1.ZoneList
+	log.Printf("Exporter Update called NodeResources is: %+v", spew.Sdump(topoUpdaterZones))
+	zones = modifyCRD(topoUpdaterZones)
 
 	nrt, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Get(context.TODO(), hostname, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -616,8 +621,8 @@ func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoU
 			ObjectMeta: metav1.ObjectMeta{
 				Name: hostname,
 			},
-			Zones:          zones,
-			TopologyPolicy: tmpolicy,
+			Zones:            zones,
+			TopologyPolicies: tmpolicy,
 		}
 
 		nrtCreated, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Create(context.TODO(), &nrtNew, metav1.CreateOptions{})
