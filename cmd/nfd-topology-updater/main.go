@@ -23,6 +23,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
+	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
 	"sigs.k8s.io/node-feature-discovery/pkg/podres"
@@ -89,7 +90,7 @@ func main() {
 
 			zones = resAggr.Aggregate(podResources)
 			zonesChannel <- zones
-			log.Printf("After aggregating resources identified zones are:%v", topology.DumpObject(zones))
+			log.Printf("After aggregating resources identified zones are:%v", dumpobject.DumpObject(zones))
 
 			time.Sleep(resourcemonitorArgs.SleepInterval)
 		}

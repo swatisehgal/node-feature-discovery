@@ -3,7 +3,6 @@ module sigs.k8s.io/node-feature-discovery
 go 1.14
 
 require (
-	github.com/davecgh/go-spew v1.1.1
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.3

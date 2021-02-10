@@ -29,6 +29,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
@@ -89,7 +90,7 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 func (w *nfdTopologyUpdater) Update(zones v1alpha1.ZoneList) error {
 	stdoutLogger.Printf("Node Feature Discovery Topology Updater %s", version.Get())
 	stdoutLogger.Printf("NodeName: '%s'", nodeName)
-	stdoutLogger.Printf("Updating now received Zone: '%s'", DumpObject(zones))
+	stdoutLogger.Printf("Updating now received Zone: '%s'", dumpobject.DumpObject(zones))
 
 	// Connect to NFD master
 	err := w.connect()
@@ -200,7 +201,7 @@ func advertiseNodeTopology(client pb.NodeTopologyClient, zoneInfo v1alpha1.ZoneL
 		NodeName:         nodeName,
 		TopologyPolicies: []string{tmPolicy},
 	}
-	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", DumpObject(topologyReq))
+	stdoutLogger.Printf("Sending NodeTopologyRequest to nfd-master: %v", dumpobject.DumpObject(topologyReq))
 
 	_, err := client.UpdateNodeTopology(ctx, topologyReq)
 	if err != nil {

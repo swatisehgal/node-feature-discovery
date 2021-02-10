@@ -30,7 +30,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
 	topologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -46,6 +45,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
+	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/labeler"
 	topologypb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
@@ -436,7 +436,7 @@ func (s *nodeTopologyServer) UpdateNodeTopology(c context.Context, r *topologypb
 			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("request authorization failed: cert valid for '%s', requested node name '%s'", cn, r.NodeName)
 		}
 	}
-	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v, Request: %v", r.NodeName, r.NfdVersion, r.TopologyPolicies, r.Zones, spew.Sdump(r))
+	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v", r.NodeName, r.NfdVersion, r.TopologyPolicies, dumpobject.DumpObject(r.Zones))
 
 	if !s.args.NoPublish {
 		err := s.updateCRD(r.NodeName, r.TopologyPolicies, r.Zones, "default")
@@ -612,7 +612,7 @@ func modifyCRD(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
 
 func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoUpdaterZones []*topologypb.Zone, namespace string) error {
 	var zones v1alpha1.ZoneList
-	log.Printf("Exporter Update called NodeResources is: %+v", spew.Sdump(topoUpdaterZones))
+	log.Printf("Exporter Update called NodeResources is: %+v", dumpobject.DumpObject(topoUpdaterZones))
 	zones = modifyCRD(topoUpdaterZones)
 
 	nrt, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Get(context.TODO(), hostname, metav1.GetOptions{})
@@ -629,7 +629,7 @@ func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoU
 		if err != nil {
 			return fmt.Errorf("Failed to create v1alpha1.NodeResourceTopology!:%v", err)
 		}
-		log.Printf("CRD instance created resTopo: %v", spew.Sdump(nrtCreated))
+		log.Printf("CRD instance created resTopo: %v", dumpobject.DumpObject(nrtCreated))
 		return nil
 	}
 
