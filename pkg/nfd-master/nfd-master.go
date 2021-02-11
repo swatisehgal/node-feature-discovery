@@ -602,6 +602,7 @@ func modifyCRD(topoUpdaterZones []*topologypb.Zone) []v1alpha1.Zone {
 		zones = append(zones, v1alpha1.Zone{
 			Name:      zone.Name,
 			Type:      zone.Type,
+			Parent:    zone.Parent,
 			Costs:     updateMap(zone.Costs),
 			Resources: resInfo,
 		})

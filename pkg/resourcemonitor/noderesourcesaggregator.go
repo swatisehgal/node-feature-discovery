@@ -100,7 +100,6 @@ func (noderesourceData *nodeResources) Aggregate(podResData []PodResources) []to
 		}
 	}
 
-	// zones := make(topologyv1alpha1.ZoneList, 0)
 	zones := make([]topologyv1alpha1.Zone, 0)
 	for nodeID, resList := range perNuma {
 		zone := topologyv1alpha1.Zone{

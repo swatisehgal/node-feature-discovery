@@ -66,3 +66,4 @@ spec:
     kind: NodeResourceTopology
     shortNames:
       - node-res-topo
+
