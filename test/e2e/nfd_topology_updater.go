@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
+	topologyclientset "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/generated/clientset/versioned"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
-	topologyclientset "github.com/swatisehgal/topologyapi/pkg/generated/clientset/versioned"
 
 	v1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -110,12 +110,12 @@ var _ = framework.KubeDescribe("[NFD] Node topology updater", func() {
 					return false
 				}
 
-				if nodeTopology == nil || len(nodeTopology.TopologyPolicy) == 0 {
+				if nodeTopology == nil || len(nodeTopology.TopologyPolicies) == 0 {
 					framework.Logf("failed to get topology policy from the node topology resource")
 					return false
 				}
 
-				if nodeTopology.TopologyPolicy[0] != (*kubeletConfig).TopologyManagerPolicy {
+				if nodeTopology.TopologyPolicies[0] != (*kubeletConfig).TopologyManagerPolicy {
 					return false
 				}
 
