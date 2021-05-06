@@ -14,7 +14,10 @@ require (
 	github.com/vektra/errors v0.0.0-20140903201135-c64d83aba85a
 	golang.org/x/net v0.0.0-20210330142815-c8897c278d10
 	golang.org/x/text v0.3.5 // indirect
-	google.golang.org/grpc v1.27.1
+	google.golang.org/genproto v0.0.0-20210202153253-cf70463f6119 // indirect
+	google.golang.org/grpc v1.35.0
+	google.golang.org/protobuf v1.25.0
+	gopkg.in/yaml.v2 v2.2.8
 	k8s.io/api v0.20.5
 	k8s.io/apimachinery v0.20.5
 	k8s.io/client-go v0.20.5
