@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path"
@@ -29,16 +30,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	"github.com/swatisehgal/topologyapi/pkg/apis/topology/v1alpha1"
+	topologyclientset "github.com/swatisehgal/topologyapi/pkg/generated/clientset/versioned"
+
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+
 	api "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/labeler"
 	"sigs.k8s.io/node-feature-discovery/pkg/utils"
+
+	topologypb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
 )
 
@@ -56,6 +67,13 @@ const (
 	workerVersionAnnotation    = "worker.version"
 )
 
+// package loggers
+var (
+	stdoutLogger = log.New(os.Stdout, "", log.LstdFlags)
+	stderrLogger = log.New(os.Stderr, "", log.LstdFlags)
+	nodeName     = os.Getenv("NODE_NAME")
+)
+
 // Labels are a Kubernetes representation of discovered features.
 type Labels map[string]string
 
@@ -64,6 +82,11 @@ type ExtendedResources map[string]string
 
 // Annotations are used for NFD-related node metadata
 type Annotations map[string]string
+
+type NodeTopologyCRD struct {
+	TopologyPolicy []string
+	Zones          map[string]*topologypb.Zone
+}
 
 // Command line arguments
 type Args struct {
@@ -88,13 +111,21 @@ type NfdMaster interface {
 }
 
 type nfdMaster struct {
-	args         Args
-	nodeName     string
-	annotationNs string
-	server       *grpc.Server
-	stop         chan struct{}
-	ready        chan bool
-	apihelper    apihelper.APIHelpers
+	args           Args
+	nodeName       string
+	annotationNs   string
+	server         *grpc.Server
+	stop           chan struct{}
+	ready          chan bool
+	apihelper      apihelper.APIHelpers
+	topologyClient *topologyclientset.Clientset
+}
+
+// statusOp is a json marshaling helper used for patching node status
+type statusOp struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value,omitempty"`
 }
 
 // Create new NfdMaster server instance.
@@ -131,6 +162,15 @@ func NewNfdMaster(args *Args) (NfdMaster, error) {
 
 	// Initialize Kubernetes API helpers
 	nfd.apihelper = apihelper.K8sHelpers{Kubeconfig: args.Kubeconfig}
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nfd, fmt.Errorf("please run from inside the cluster")
+	}
+	nfd.topologyClient, err = topologyclientset.NewForConfig(restConfig)
+	if err != nil {
+		return nfd, fmt.Errorf("error building example clientset: %s", err.Error())
+	}
 
 	return nfd, nil
 }
@@ -183,6 +223,7 @@ func (m *nfdMaster) Run() error {
 	}
 	m.server = grpc.NewServer(serverOpts...)
 	pb.RegisterLabelerServer(m.server, m)
+	topologypb.RegisterNodeTopologyServer(m.server, &nodeTopologyServer{args: m.args, topologyClient: m.topologyClient})
 	klog.Infof("gRPC server serving on port: %d", m.args.Port)
 
 	// Run gRPC server
@@ -408,6 +449,48 @@ func (m *nfdMaster) SetLabels(c context.Context, r *pb.SetLabelsRequest) (*pb.Se
 	return &pb.SetLabelsReply{}, nil
 }
 
+// Implement NodeTopologyServer
+type nodeTopologyServer struct {
+	args           Args
+	topologyClient *topologyclientset.Clientset
+}
+
+func (s *nodeTopologyServer) UpdateNodeTopology(c context.Context, r *topologypb.NodeTopologyRequest) (*topologypb.NodeTopologyResponse, error) {
+	if s.args.VerifyNodeName {
+		// Client authorization.
+		// Check that the node name matches the CN from the TLS cert
+		client, ok := peer.FromContext(c)
+		if !ok {
+			stderrLogger.Printf("gRPC request error: failed to get peer (client)")
+			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("failed to get peer (client)")
+		}
+		tlsAuth, ok := client.AuthInfo.(credentials.TLSInfo)
+		if !ok {
+			stderrLogger.Printf("gRPC request error: incorrect client credentials from '%v'", client.Addr)
+			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("incorrect client credentials")
+		}
+		if len(tlsAuth.State.VerifiedChains) == 0 || len(tlsAuth.State.VerifiedChains[0]) == 0 {
+			stderrLogger.Printf("gRPC request error: client certificate verification for '%v' failed", client.Addr)
+			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("client certificate verification failed")
+		}
+		cn := tlsAuth.State.VerifiedChains[0][0].Subject.CommonName
+		if cn != r.NodeName {
+			stderrLogger.Printf("gRPC request error: authorization for %v failed: cert valid for '%s', requested node name '%s'", client.Addr, cn, r.NodeName)
+			return &topologypb.NodeTopologyResponse{}, fmt.Errorf("request authorization failed: cert valid for '%s', requested node name '%s'", cn, r.NodeName)
+		}
+	}
+	stdoutLogger.Printf("REQUEST Node: %s NFD-version: %s Topology Policy: %s Zones: %v", r.NodeName, r.NfdVersion, r.TopologyPolicy, r.Zones)
+
+	if !s.args.NoPublish {
+		err := s.updateCRD(r.NodeName, r.TopologyPolicy, r.Zones, "default")
+		if err != nil {
+			stderrLogger.Printf("failed to advertise labels: %s", err.Error())
+			return &topologypb.NodeTopologyResponse{}, err
+		}
+	}
+	return &topologypb.NodeTopologyResponse{}, nil
+}
+
 // updateNodeFeatures ensures the Kubernetes node object is up to date,
 // creating new labels and extended resources where necessary and removing
 // outdated ones. Also updates the corresponding annotations.
@@ -576,4 +659,73 @@ func stringToNsNames(cslist, ns string) []string {
 		}
 	}
 	return names
+}
+
+func updateMap(input map[string]int32) map[string]int {
+	ret := make(map[string]int)
+
+	for str, data := range input {
+		ret[str] = int(data)
+	}
+	return ret
+}
+
+func modifyCRD(topoUpdaterZones map[string]*topologypb.Zone) map[string]v1alpha1.Zone {
+
+	zones := make(map[string]v1alpha1.Zone)
+	for zoneName, zone := range topoUpdaterZones {
+		resInfo := make(map[string]v1alpha1.ResourceInfo)
+		for resourceName, info := range zone.Resources {
+			resInfo[resourceName] = v1alpha1.ResourceInfo{
+				Allocatable: info.Allocatable,
+				Capacity:    info.Capacity,
+			}
+		}
+
+		zones[zoneName] = v1alpha1.Zone{
+			Type:      zone.Type,
+			Parent:    zone.Parent,
+			Costs:     updateMap(zone.Costs),
+			Resources: resInfo,
+		}
+	}
+	return zones
+
+}
+
+func (s *nodeTopologyServer) updateCRD(hostname string, tmpolicy []string, topoUpdaterZones map[string]*topologypb.Zone, namespace string) error {
+	log.Printf("Exporter Update called NodeResources is: %+v", topoUpdaterZones)
+	zones := modifyCRD(topoUpdaterZones)
+
+	nrt, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Get(context.TODO(), hostname, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		nrtNew := v1alpha1.NodeResourceTopology{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: hostname,
+			},
+			Zones:          zones,
+			TopologyPolicy: tmpolicy,
+		}
+
+		nrtCreated, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Create(context.TODO(), &nrtNew, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("Failed to create v1alpha1.NodeResourceTopology!:%v", err)
+		}
+		log.Printf("CRD instance created resTopo: %v", spew.Sdump(nrtCreated))
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	nrtMutated := nrt.DeepCopy()
+	nrtMutated.Zones = zones
+
+	nrtUpdated, err := s.topologyClient.TopologyV1alpha1().NodeResourceTopologies(namespace).Update(context.TODO(), nrtMutated, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("Failed to update v1alpha1.NodeResourceTopology!:%v", err)
+	}
+	log.Printf("CRD instance updated resTopo: %v", nrtUpdated)
+	return nil
 }
