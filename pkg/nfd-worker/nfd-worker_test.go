@@ -111,6 +111,7 @@ func TestRunTls(t *testing.T) {
 		CaFile:         data.FilePath("ca.crt"),
 		CertFile:       data.FilePath("nfd-test-master.crt"),
 		KeyFile:        data.FilePath("nfd-test-master.key"),
+		Kubeconfig:     data.FilePath("kubeconfig"),
 		VerifyNodeName: false,
 	}
 	ctx := setupTest(masterArgs)
@@ -134,3 +135,33 @@ func TestRunTls(t *testing.T) {
 		})
 	})
 }
+
+// func TestRunKubeconfig(t *testing.T) {
+// 	masterArgs := &master.Args{
+// 		CaFile:         data.FilePath("ca.crt"),
+// 		CertFile:       data.FilePath("nfd-test-master.crt"),
+// 		KeyFile:        data.FilePath("nfd-test-master.key"),
+
+// 		VerifyNodeName: false,
+// 	}
+// 	ctx := setupTest(masterArgs)
+// 	defer teardownTest(ctx)
+// 	Convey("When running nfd-worker against nfd-master with mutual TLS auth enabled", t, func() {
+// 		Convey("When publishing features from fake source", func() {
+// 			workerArgs := worker.Args{
+// 				CaFile:             data.FilePath("ca.crt"),
+// 				CertFile:           data.FilePath("nfd-test-worker.crt"),
+// 				KeyFile:            data.FilePath("nfd-test-worker.key"),
+// 				Oneshot:            true,
+// 				Server:             "localhost:8192",
+// 				ServerNameOverride: "nfd-test-master",
+// 				Overrides:          worker.ConfigOverrideArgs{Sources: &utils.StringSliceVal{"fake"}},
+// 			}
+// 			w, _ := worker.NewNfdWorker(&workerArgs)
+// 			err := w.Run()
+// 			Convey("No error should be returned", func() {
+// 				So(err, ShouldBeNil)
+// 			})
+// 		})
+// 	})
+// }

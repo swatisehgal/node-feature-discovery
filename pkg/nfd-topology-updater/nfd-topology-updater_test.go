@@ -119,6 +119,7 @@ func TestRunTls(t *testing.T) {
 		CaFile:         data.FilePath("ca.crt"),
 		CertFile:       data.FilePath("nfd-test-master.crt"),
 		KeyFile:        data.FilePath("nfd-test-master.key"),
+		Kubeconfig:     data.FilePath("kubeconfig"),
 		VerifyNodeName: false,
 	}
 	ctx := setupTest(masterArgs)
