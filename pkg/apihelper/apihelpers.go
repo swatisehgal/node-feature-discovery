@@ -44,4 +44,10 @@ type APIHelpers interface {
 
 	// GetTopologyClient returns a topologyclientset
 	GetTopologyClient() (*topologyclientset.Clientset, error)
+
+	// GetPod returns the Kubernetes pod in a namepace with a name.
+	GetPod(*k8sclient.Clientset, string, string) (*api.Pod, error)
+
+	// GetPods returns all the nodes in the cluster
+	GetPods(*k8sclient.Clientset, string) (*api.PodList, error)
 }

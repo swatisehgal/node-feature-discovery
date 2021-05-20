@@ -23,6 +23,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 	v1alpha1 "github.com/k8stopologyawareschedwg/noderesourcetopology-api/pkg/apis/topology/v1alpha1"
+	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
 	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	"sigs.k8s.io/node-feature-discovery/pkg/kubeconf"
 	topology "sigs.k8s.io/node-feature-discovery/pkg/nfd-topology-updater"
@@ -58,9 +59,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get PodResource Client: %v", err)
 	}
-	var resScan resourcemonitor.ResourcesScanner
 
-	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs.Namespace, podResClient)
+	kubeApihelper := apihelper.K8sHelpers{Kubeconfig: args.Kubeconfig}
+
+	var resScan resourcemonitor.ResourcesScanner
+	resScan, err = resourcemonitor.NewPodResourcesScanner(resourcemonitorArgs.Namespace, podResClient, kubeApihelper)
 	if err != nil {
 		log.Fatalf("Failed to initialize ResourceMonitor instance: %v", err)
 	}
@@ -123,9 +126,10 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
 
   Usage:
   %s [--no-publish] [--oneshot | --sleep-interval=<seconds>] [--server=<server>]
-	   [--server-name-override=<name>] [--ca-file=<path>] [--cert-file=<path>]
-		 [--key-file=<path>] [--container-runtime=<runtime>] [--podresources-socket=<path>]
-		 [--watch-namespace=<namespace>] [--sysfs=<mountpoint>] [--kubelet-config-file=<path>]
+	 [--server-name-override=<name>] [--ca-file=<path>] [--cert-file=<path>]
+	 [--key-file=<path>] [--kube-config-file=<path>][--container-runtime=<runtime>]
+	 [--podresources-socket=<path>] [--watch-namespace=<namespace>] [--sysfs=<mountpoint>]
+	 [--kubelet-config-file=<path>]
 
   %s -h | --help
   %s --version
@@ -138,6 +142,8 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
   --cert-file=<path>              Certificate used for authenticating connections
                                   [Default: ]
   --key-file=<path>               Private key matching --cert-file
+                                  [Default: ]
+  --kube-config-file=<path>       Kube config file
                                   [Default: ]
   --server=<server>               NFD server address to connect to.
                                   [Default: localhost:8080]
@@ -172,6 +178,7 @@ func argsParse(argv []string) (topology.Args, resourcemonitor.Args, error) {
 	args.CaFile = arguments["--ca-file"].(string)
 	args.CertFile = arguments["--cert-file"].(string)
 	args.KeyFile = arguments["--key-file"].(string)
+	args.Kubeconfig = arguments["--kube-config-file"].(string)
 	args.NoPublish = arguments["--no-publish"].(bool)
 	args.Server = arguments["--server"].(string)
 	args.ServerNameOverride = arguments["--server-name-override"].(string)

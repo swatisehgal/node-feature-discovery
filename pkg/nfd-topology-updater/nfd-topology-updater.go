@@ -29,6 +29,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+
+	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
 	"sigs.k8s.io/node-feature-discovery/pkg/dumpobject"
 	pb "sigs.k8s.io/node-feature-discovery/pkg/topologyupdater"
 	"sigs.k8s.io/node-feature-discovery/pkg/version"
@@ -45,6 +47,7 @@ type Args struct {
 	CaFile             string
 	CertFile           string
 	KeyFile            string
+	Kubeconfig         string
 	NoPublish          bool
 	Oneshot            bool
 	Server             string
@@ -60,6 +63,7 @@ type nfdTopologyUpdater struct {
 	clientConn *grpc.ClientConn
 	client     pb.NodeTopologyClient
 	tmPolicy   string
+	apihelper  apihelper.APIHelpers
 }
 
 // Create new NewTopologyUpdater instance.
@@ -81,6 +85,9 @@ func NewTopologyUpdater(args Args, policy string) (NfdTopologyUpdater, error) {
 			return nfd, fmt.Errorf("--ca-file needs to be specified alongside --cert-file and --key-file")
 		}
 	}
+
+	// Initialize Kubernetes API helpers
+	nfd.apihelper = apihelper.K8sHelpers{Kubeconfig: args.Kubeconfig}
 
 	return nfd, nil
 }

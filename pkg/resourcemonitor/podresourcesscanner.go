@@ -23,17 +23,21 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	podresourcesapi "k8s.io/kubelet/pkg/apis/podresources/v1"
+	v1qos "k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
+	"sigs.k8s.io/node-feature-discovery/pkg/apihelper"
 )
 
 type PodResourcesScanner struct {
 	namespace         string
 	podResourceClient podresourcesapi.PodResourcesListerClient
+	apihelper         apihelper.APIHelpers
 }
 
-func NewPodResourcesScanner(namespace string, podResourceClient podresourcesapi.PodResourcesListerClient) (ResourcesScanner, error) {
+func NewPodResourcesScanner(namespace string, podResourceClient podresourcesapi.PodResourcesListerClient, kubeApihelper apihelper.APIHelpers) (ResourcesScanner, error) {
 	resourcemonitorInstance := &PodResourcesScanner{
 		namespace:         namespace,
 		podResourceClient: podResourceClient,
+		apihelper:         kubeApihelper,
 	}
 	if resourcemonitorInstance.namespace != "" {
 		log.Printf("watching namespace %q", resourcemonitorInstance.namespace)
@@ -45,12 +49,59 @@ func NewPodResourcesScanner(namespace string, podResourceClient podresourcesapi.
 }
 
 // isWatchable tells if the the given namespace should be watched.
-func (resMon *PodResourcesScanner) isWatchable(podNamespace string) bool {
-	if resMon.namespace == "" {
-		return true
+func (resMon *PodResourcesScanner) isWatchable(podNamespace string, podName string) (bool, error) {
+	cli, err := resMon.apihelper.GetClient()
+	if err != nil {
+		return false, err
+	}
+	pod, err := resMon.apihelper.GetPod(cli, podNamespace, podName)
+	if err != nil {
+		return false, err
+	}
+
+	if v1qos.GetPodQOS(pod) != v1.PodQOSGuaranteed {
+		return false, nil
+	}
+
+	if resMon.namespace == "" && podGuaranteedCPUs(pod) {
+		return true, nil
 	}
 	// TODO:  add an explicit check for guaranteed pods
-	return resMon.namespace == podNamespace
+	return resMon.namespace == podNamespace && podGuaranteedCPUs(pod), nil
+}
+
+func podGuaranteedCPUs(pod *v1.Pod) bool {
+	for _, container := range pod.Spec.InitContainers {
+		if _, ok := container.Resources.Requests[v1.ResourceCPU]; !ok {
+			continue
+		}
+		isInitContainerGuaranteed := guaranteedCPUs(pod, &container)
+		if !isInitContainerGuaranteed {
+			return false
+		}
+	}
+	for _, container := range pod.Spec.Containers {
+		if _, ok := container.Resources.Requests[v1.ResourceCPU]; !ok {
+			continue
+		}
+		isAppContainerGuaranteed := guaranteedCPUs(pod, &container)
+		if !isAppContainerGuaranteed {
+			return false
+		}
+	}
+	return true
+}
+
+func guaranteedCPUs(pod *v1.Pod, container *v1.Container) bool {
+
+	cpuQuantity := container.Resources.Requests[v1.ResourceCPU]
+	if cpuQuantity.Value()*1000 != cpuQuantity.MilliValue() {
+		return false
+	}
+	// Safe downcast to do for all systems with < 2.1 billion CPUs.
+	// Per the language spec, `int` is guaranteed to be at least 32 bits wide.
+	// https://golang.org/ref/spec#Numeric_types
+	return true
 }
 
 // Scan gathers all the PodResources from the system, using the podresources API client.
@@ -67,7 +118,11 @@ func (resMon *PodResourcesScanner) Scan() ([]PodResources, error) {
 	var podResData []PodResources
 
 	for _, podResource := range resp.GetPodResources() {
-		if !resMon.isWatchable(podResource.GetNamespace()) {
+		isWatchable, err := resMon.isWatchable(podResource.GetNamespace(), podResource.GetName())
+		if err != nil {
+			return nil, fmt.Errorf("checking if pod in a namespace is watchable, namespace:%v, pod name %v: %v", podResource.GetNamespace(), podResource.GetName(), err)
+		}
+		if !isWatchable {
 			continue
 		}
 

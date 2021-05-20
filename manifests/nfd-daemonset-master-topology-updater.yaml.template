@@ -21,6 +21,7 @@ rules:
       - ""
     resources:
       - nodes
+      - pods
     # when using command line flag --resource-labels to create extended resources
     # you will need to uncomment "- nodes/status"
     # - nodes/status
